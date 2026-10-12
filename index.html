@@ -1,0 +1,2643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF6F0">
+<title>字卡难度与熟练度评估</title>
+<style>
+/* SECTION: reset-vars */
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --bg: #FFF6F0;
+  --bg-2: #FFEFE6;
+  --card: #FFFFFF;
+  --ink: #4A3B37;
+  --ink-2: #7B6A64;
+  --ink-3: #A79690;
+  --line: #F3E2D9;
+  --pink: #FF8FAB;
+  --pink-soft: #FFD9E3;
+  --pink-deep: #E86D8E;
+  --mint: #8FD3C7;
+  --sky: #8FBEE0;
+  --amber: #F0B567;
+  --shadow: 0 6px 20px rgba(180, 130, 115, 0.10);
+  --shadow-lift: 0 10px 28px rgba(180, 130, 115, 0.16);
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
+}
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(170deg, var(--bg) 0%, var(--bg-2) 55%, #FFE9EE 100%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.45; font-weight: 600; }
+p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+a { color: var(--pink-deep); }
+
+/* SECTION: layout */
+.app { max-width: 920px; margin: 0 auto; padding: 20px 16px calc(48px + env(safe-area-inset-bottom)); }
+
+/* SECTION: hero */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FFF1F5 100%);
+  border: 1px solid var(--pink-soft);
+  border-radius: var(--r-lg);
+  padding: 26px 22px 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  right: -40px; top: -50px;
+  width: 150px; height: 150px;
+  background: radial-gradient(circle, rgba(255,143,171,.20) 0%, rgba(255,143,171,0) 70%);
+  pointer-events: none;
+}
+.hero-eyebrow { font-size: 12px; letter-spacing: .18em; color: var(--pink-deep); font-weight: 600; }
+.hero h1 { font-size: 24px; margin: 6px 0 8px; letter-spacing: .02em; }
+.hero-desc { font-size: 13px; color: var(--ink-2); max-width: 44ch; margin: 0 auto; }
+.hero-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+.badge {
+  font-size: 12px; padding: 4px 11px; border-radius: 999px;
+  background: #FFF; border: 1px solid var(--line); color: var(--ink-2);
+}
+.badge.accent { background: var(--pink-soft); border-color: transparent; color: #B4486A; font-weight: 600; }
+
+/* SECTION: subject */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  margin-top: 14px;
+}
+.panel-title { font-size: 14px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.panel-title .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pink); flex: none; }
+.panel-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.subject-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.subject-card {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 8px;
+  text-align: center;
+  background: #FFFDFC;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.subject-card .sc-icon { font-size: 20px; line-height: 1; }
+.subject-card .sc-name { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.subject-card .sc-hint { font-size: 11px; color: var(--ink-3); line-height: 1.5; margin-top: 3px; }
+.subject-card[aria-pressed="true"] {
+  border-color: var(--pink); background: #FFF4F7; transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(232,109,142,.14);
+}
+.subject-card[aria-pressed="true"] .sc-name { color: var(--pink-deep); }
+.name-row { margin-top: 10px; display: none; }
+.name-row.show { display: block; }
+.text-input {
+  width: 100%; padding: 10px 12px; border-radius: var(--r-md);
+  border: 1.5px solid var(--line); background: #FFFDFC;
+  outline: none; font-size: 14px; transition: border-color .18s;
+}
+.text-input:focus { border-color: var(--pink); }
+.name-hint { font-size: 11px; color: var(--ink-3); margin-top: 5px; }
+
+/* SECTION: tabs */
+.tabs {
+  display: flex; gap: 6px; margin-top: 18px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  position: sticky; top: 8px; z-index: 20;
+  backdrop-filter: blur(8px);
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 1 0 auto; min-width: 76px;
+  padding: 9px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; color: var(--ink-3);
+  white-space: nowrap; transition: background .18s, color .18s;
+}
+.tab[aria-selected="true"] { background: var(--pink); color: #FFF; box-shadow: 0 4px 12px rgba(232,109,142,.24); }
+.tab .tab-n { font-size: 11px; opacity: .75; margin-left: 3px; }
+
+/* SECTION: view */
+.view { display: none; animation: fade .28s ease; }
+.view.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.view-head { margin: 22px 0 12px; }
+.view-head h2 { font-size: 18px; }
+.view-head p { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+
+/* SECTION: controls */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.chip {
+  padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  border: 1.5px solid var(--line); background: #FFFDFC; color: var(--ink-2);
+  transition: all .18s;
+}
+.chip[aria-pressed="true"] { border-color: var(--pink); background: var(--pink); color: #FFF; }
+.spacer { flex: 1; }
+.btn {
+  padding: 10px 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
+  background: #FFFDFC; border: 1.5px solid var(--line); color: var(--ink-2);
+  transition: all .18s;
+}
+.btn:hover { border-color: var(--pink-soft); background: #FFF8FA; }
+.btn.primary { background: var(--pink); border-color: var(--pink); color: #FFF; box-shadow: 0 6px 16px rgba(232,109,142,.22); }
+.btn.primary:hover { background: var(--pink-deep); border-color: var(--pink-deep); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: #C4546E; border-color: #F6D3DB; }
+.btn.danger:hover { background: #FFF2F5; }
+.btn.block { width: 100%; display: block; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-row .btn { flex: 1; min-width: 108px; text-align: center; }
+
+/* SECTION: guide cards */
+.cat-list { display: grid; gap: 10px; }
+.cat-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+  box-shadow: var(--shadow); transition: box-shadow .2s;
+}
+.cat-card.open { box-shadow: var(--shadow-lift); }
+.cat-head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; text-align: left;
+}
+.cat-icon {
+  width: 42px; height: 42px; flex: none; border-radius: 13px;
+  display: grid; place-items: center; font-size: 19px;
+  background: linear-gradient(140deg, #FFF0F4, #FFEDE2);
+}
+.cat-main { flex: 1; min-width: 0; }
+.cat-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cat-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-score { text-align: right; flex: none; }
+.cat-score .n { font-size: 19px; font-weight: 700; color: var(--pink-deep); line-height: 1.1; }
+.cat-score .u { font-size: 10px; color: var(--ink-3); display: block; }
+.cat-toggle { flex: none; color: var(--ink-3); font-size: 12px; transition: transform .22s; }
+.cat-card.open .cat-toggle { transform: rotate(180deg); }
+.cat-body { display: none; padding: 0 16px 16px; border-top: 1px dashed var(--line); }
+.cat-card.open .cat-body { display: block; animation: fade .26s ease; }
+.cat-role { font-size: 13px; color: var(--ink-2); margin: 12px 0 4px; }
+.cat-summary {
+  font-size: 13px; color: var(--ink); background: #FFF7F2;
+  border-left: 3px solid var(--amber); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: 9px 12px; margin: 10px 0 14px;
+}
+.dim-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+.dim {
+  background: #FFFDFA; border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 9px 11px;
+}
+.dim-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.dim-name { font-size: 12px; font-weight: 600; }
+.dim-desc { font-size: 10.5px; color: var(--ink-3); line-height: 1.5; margin-top: 1px; }
+.dots { display: flex; gap: 3px; flex: none; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: block; }
+.dots i.on { background: var(--pink); }
+.block-title {
+  font-size: 12px; font-weight: 700; color: var(--ink-2);
+  letter-spacing: .06em; margin: 14px 0 7px;
+  display: flex; align-items: center; gap: 6px;
+}
+.block-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.pit-item, .tip-item {
+  font-size: 12.8px; color: var(--ink-2); line-height: 1.7;
+  padding: 5px 0 5px 18px; position: relative;
+}
+.pit-item::before { content: "⚠"; position: absolute; left: 0; top: 5px; font-size: 10px; color: var(--amber); }
+.tip-item::before { content: "✓"; position: absolute; left: 0; top: 5px; font-size: 11px; color: var(--mint); font-weight: 700; }
+.next-box {
+  margin-top: 14px; padding: 11px 13px; border-radius: var(--r-md);
+  background: linear-gradient(135deg, #FFF1F5, #FFF6EE);
+  border: 1px dashed var(--pink-soft);
+  font-size: 12.8px; color: var(--ink);
+}
+.next-box b { color: var(--pink-deep); }
+
+/* SECTION: quiz */
+.quiz-setup { text-align: center; padding: 8px 0; }
+.scope-grid { display: grid; gap: 8px; margin: 14px 0; }
+.scope-card {
+  border: 1.5px solid var(--line); border-radius: var(--r-md);
+  padding: 14px; text-align: left; background: #FFFDFC; transition: all .18s;
+}
+.scope-card[aria-pressed="true"] { border-color: var(--pink); background: #FFF4F7; }
+.scope-card .sn { font-size: 14px; font-weight: 600; }
+.scope-card .sd { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.6; }
+.scope-card[aria-pressed="true"] .sn { color: var(--pink-deep); }
+
+.progress-wrap { margin-bottom: 16px; }
+.progress-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--ink-3); margin-bottom: 7px; }
+.progress-top b { color: var(--pink-deep); font-size: 13px; }
+.progress-bar { height: 7px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pink), #FFB7C5); transition: width .3s ease; }
+
+.q-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 20px 18px; box-shadow: var(--shadow);
+}
+.q-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.q-tag {
+  font-size: 11px; padding: 3px 10px; border-radius: 999px;
+  background: #FFF1F5; color: var(--pink-deep); font-weight: 600;
+}
+.q-tag.axis { background: #EFF7F5; color: #4E9C8D; }
+.q-text { font-size: 16.5px; font-weight: 600; line-height: 1.65; margin-bottom: 16px; }
+.opt-list { display: grid; gap: 8px; }
+.opt {
+  display: flex; gap: 11px; align-items: flex-start; text-align: left;
+  padding: 12px 14px; border-radius: var(--r-md);
+  border: 1.5px solid var(--line); background: #FFFDFC;
+  font-size: 13.5px; line-height: 1.65; color: var(--ink-2);
+  transition: all .16s; min-height: 46px;
+}
+.opt:hover { border-color: var(--pink-soft); background: #FFF9FB; }
+.opt .key {
+  width: 22px; height: 22px; flex: none; border-radius: 50%;
+  background: var(--bg-2); color: var(--ink-3);
+  font-size: 11.5px; font-weight: 700; display: grid; place-items: center;
+  margin-top: 1px; transition: all .16s;
+}
+.opt[aria-pressed="true"] { border-color: var(--pink); background: #FFF3F7; color: var(--ink); font-weight: 500; }
+.opt[aria-pressed="true"] .key { background: var(--pink); color: #FFF; }
+.q-nav { display: flex; gap: 8px; margin-top: 16px; }
+.q-nav .btn { flex: 1; }
+.q-note { font-size: 11.5px; color: var(--ink-3); margin-top: 12px; text-align: center; line-height: 1.6; }
+
+/* SECTION: result */
+.result-hero {
+  background: linear-gradient(140deg, #FFFFFF 0%, #FFF0F5 60%, #FFF6EE 100%);
+  border: 1px solid var(--pink-soft); border-radius: var(--r-lg);
+  padding: 24px 20px; text-align: center; box-shadow: var(--shadow); position: relative; overflow: hidden;
+}
+.result-hero::before {
+  content: ""; position: absolute; left: -30px; bottom: -40px;
+  width: 130px; height: 130px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(143,211,199,.18) 0%, rgba(143,211,199,0) 70%);
+}
+.ring-wrap { position: relative; width: 132px; height: 132px; margin: 0 auto 12px; }
+.ring-wrap svg { transform: rotate(-90deg); display: block; }
+.ring-num {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 32px; font-weight: 700; color: var(--pink-deep); line-height: 1;
+}
+.ring-num small { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); margin-top: 4px; }
+.r-title { font-size: 22px; font-weight: 700; color: var(--ink); }
+.r-subject { font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
+.r-line { font-size: 13.5px; color: var(--ink-2); margin-top: 10px; max-width: 40ch; margin-left: auto; margin-right: auto; }
+.r-meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+
+.sec-title { font-size: 15px; font-weight: 600; margin: 22px 0 4px; display: flex; align-items: center; gap: 8px; }
+.sec-title .bar { width: 4px; height: 15px; border-radius: 2px; background: var(--pink); }
+.sec-sub { font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
+
+.radar-card { display: grid; gap: 14px; }
+.radar-box { position: relative; width: 100%; }
+.radar-box canvas { width: 100%; height: auto; display: block; }
+.axis-legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.ax-item { background: #FFFDFA; border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; }
+.ax-top { display: flex; justify-content: space-between; align-items: baseline; }
+.ax-name { font-size: 13px; font-weight: 600; }
+.ax-val { font-size: 15px; font-weight: 700; color: var(--pink-deep); }
+.ax-desc { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.ax-track { height: 5px; border-radius: 999px; background: var(--line); margin-top: 7px; overflow: hidden; }
+.ax-fill { height: 100%; border-radius: 999px; background: var(--pink); }
+
+.cat-level-list { display: grid; gap: 8px; }
+.cl-item {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 12px 14px; box-shadow: var(--shadow);
+}
+.cl-top { display: flex; align-items: center; gap: 9px; }
+.cl-icon { font-size: 16px; flex: none; }
+.cl-name { font-size: 13.5px; font-weight: 600; flex: 1; min-width: 0; }
+.cl-lv {
+  font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px;
+  color: #FFF; flex: none;
+}
+.cl-pct { font-size: 13px; font-weight: 700; color: var(--ink); flex: none; min-width: 40px; text-align: right; }
+.cl-track { height: 6px; border-radius: 999px; background: var(--line); margin-top: 9px; overflow: hidden; }
+.cl-fill { height: 100%; border-radius: 999px; transition: width .5s ease; }
+.cl-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--ink-3); margin-top: 6px; }
+.cl-item.unanswered .cl-name, .cl-item.unanswered .cl-pct { color: var(--ink-3); }
+
+.scatter-box { position: relative; width: 100%; }
+.scatter-box canvas { width: 100%; height: auto; display: block; }
+.quad-legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-top: 10px; }
+.quad { font-size: 11.5px; color: var(--ink-2); background: #FFFDFA; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; line-height: 1.55; }
+.quad b { display: block; font-size: 12px; }
+
+.plan-list { display: grid; gap: 8px; }
+.plan-group-title { font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin: 12px 0 2px; }
+.plan-item {
+  display: flex; gap: 11px; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 12px 14px; box-shadow: var(--shadow);
+}
+.plan-rank {
+  width: 24px; height: 24px; flex: none; border-radius: 8px;
+  background: linear-gradient(140deg, var(--pink), #FFB7C5); color: #FFF;
+  font-size: 12px; font-weight: 700; display: grid; place-items: center;
+}
+.plan-rank.done { background: var(--line); color: var(--ink-3); }
+.plan-body { flex: 1; min-width: 0; }
+.plan-name { font-size: 13.5px; font-weight: 600; }
+.plan-why { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.plan-next { font-size: 12.5px; color: var(--ink-2); margin-top: 6px; background: #FFF7F2; border-radius: var(--r-sm); padding: 7px 10px; }
+
+.note-box {
+  background: #FFFBF5; border: 1px solid #F6E5CC; border-radius: var(--r-md);
+  padding: 13px 15px; font-size: 12.3px; color: var(--ink-2); line-height: 1.8; margin-top: 14px;
+}
+.note-box b { color: var(--ink); }
+.note-box ul { margin-top: 5px; }
+.note-box li { padding-left: 14px; position: relative; }
+.note-box li::before { content: "·"; position: absolute; left: 3px; color: var(--amber); font-weight: 700; }
+
+.empty {
+  text-align: center; padding: 38px 20px; color: var(--ink-3);
+  background: var(--card); border: 1px dashed var(--line); border-radius: var(--r-lg);
+}
+.empty .ei { font-size: 34px; margin-bottom: 8px; }
+.empty .et { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.empty .ed { font-size: 12.5px; margin-top: 5px; line-height: 1.7; }
+.empty .btn { margin-top: 16px; }
+
+/* SECTION: history */
+.hist-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 12px 14px; box-shadow: var(--shadow); display: flex; gap: 11px; align-items: center;
+}
+.hist-score {
+  width: 52px; height: 52px; flex: none; border-radius: 14px;
+  display: grid; place-items: center; font-size: 18px; font-weight: 700; color: #FFF;
+  background: linear-gradient(140deg, var(--pink), #FFB08F);
+}
+.hist-main { flex: 1; min-width: 0; }
+.hist-name { font-size: 13.5px; font-weight: 600; }
+.hist-meta { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.hist-delta { font-size: 12px; font-weight: 700; flex: none; }
+.hist-delta.up { color: #4E9C8D; }
+.hist-delta.down { color: #C4546E; }
+.hist-delta.same { color: var(--ink-3); }
+.hist-del { font-size: 11.5px; color: var(--ink-3); padding: 4px 8px; border-radius: 8px; flex: none; }
+.hist-del:hover { color: #C4546E; background: #FFF2F5; }
+.hist-list { display: grid; gap: 8px; }
+.trend-box { position: relative; width: 100%; margin-bottom: 4px; }
+.trend-box canvas { width: 100%; height: auto; display: block; }
+
+/* SECTION: toast */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(16px);
+  background: rgba(74,59,55,.94); color: #FFF; font-size: 13px;
+  padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+  transition: opacity .24s, transform .24s; z-index: 99; max-width: 86vw; text-align: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* SECTION: footer */
+.footer {
+  margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line);
+  font-size: 11.5px; color: var(--ink-3); line-height: 1.9; text-align: center;
+}
+.footer .credit { color: var(--ink-2); font-weight: 600; }
+
+/* SECTION: responsive */
+@media (min-width: 720px) {
+  .app { padding: 30px 24px 60px; }
+  .hero { padding: 34px 30px; }
+  .hero h1 { font-size: 29px; }
+  .dim-grid { grid-template-columns: repeat(4, 1fr); }
+  .axis-legend { grid-template-columns: repeat(4, 1fr); }
+  .quad-legend { grid-template-columns: repeat(4, 1fr); }
+  .radar-card { grid-template-columns: 1fr 1fr; align-items: center; }
+  .cat-level-list { grid-template-columns: repeat(2, 1fr); }
+  .scope-grid { grid-template-columns: repeat(2, 1fr); }
+  .q-card { padding: 26px 24px; }
+  .q-text { font-size: 18px; }
+  .tabs { max-width: 520px; margin-left: auto; margin-right: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SECTION: hero -->
+  <header class="hero">
+    <div class="hero-eyebrow">CARD PROFICIENCY</div>
+    <h1>字卡难度与熟练度评估</h1>
+    <p class="hero-desc">先看清每类字卡难在哪，再测出你或 TA 的熟练度到哪一档，最后给出下一步该练什么。</p>
+    <div class="hero-badges">
+      <span class="badge accent" id="badgeCat">8 类字卡</span>
+      <span class="badge" id="badgeQ">28 道题</span>
+      <span class="badge">4 个能力维度</span>
+      <span class="badge">数据只存在本机</span>
+    </div>
+  </header>
+
+  <!-- SECTION: subject -->
+  <section class="panel" id="subjectPanel">
+    <div class="panel-title"><span class="dot"></span>这次评谁</div>
+    <div class="panel-sub">题目的人称会跟着切换，评 TA 时按 TA 在对话里的实际表现作答。</div>
+    <div class="subject-grid" id="subjectGrid" role="group" aria-label="评估对象"></div>
+    <div class="name-row" id="nameRow">
+      <input class="text-input" id="nameInput" type="text" maxlength="16" placeholder="输入昵称，例如：阿柚" aria-label="评估对象昵称">
+      <div class="name-hint">昵称只保存在这台设备的浏览器里，用于题目称呼和历史记录。</div>
+    </div>
+  </section>
+
+  <!-- SECTION: tabs -->
+  <nav class="tabs" role="tablist" aria-label="功能分区">
+    <button class="tab" role="tab" data-view="guide" aria-selected="true">难度图鉴</button>
+    <button class="tab" role="tab" data-view="quiz" aria-selected="false">开始测评</button>
+    <button class="tab" role="tab" data-view="result" aria-selected="false">评估结果</button>
+    <button class="tab" role="tab" data-view="history" aria-selected="false">历史记录</button>
+  </nav>
+
+  <main>
+    <!-- SECTION: view-guide -->
+    <section class="view active" id="view-guide" role="tabpanel">
+      <div class="view-head">
+        <h2>难度图鉴</h2>
+        <p>每类字卡的上手门槛、配置复杂度、踩坑风险和内容创作要求，附常见坑与破解思路。难度分值为经验性评估，非官方标准。</p>
+      </div>
+      <div class="controls">
+        <button class="chip" data-sort="diff" aria-pressed="true">按难度</button>
+        <button class="chip" data-sort="name" aria-pressed="false">按名称</button>
+        <button class="chip" data-sort="origin" aria-pressed="false">默认顺序</button>
+        <span class="spacer"></span>
+        <button class="chip" id="expandAll" aria-pressed="false">全部展开</button>
+      </div>
+      <div class="cat-list" id="catList"></div>
+    </section>
+
+    <!-- SECTION: view-quiz -->
+    <section class="view" id="view-quiz" role="tabpanel">
+      <div class="view-head">
+        <h2>开始测评</h2>
+        <p>每题选最接近真实情况的一项，不确定就选偏低的那档。可以跳过，也可以随时回退修改。</p>
+      </div>
+      <div id="quizSetup"></div>
+      <div id="quizRun" style="display:none"></div>
+    </section>
+
+    <!-- SECTION: view-result -->
+    <section class="view" id="view-result" role="tabpanel">
+      <div class="view-head">
+        <h2>评估结果</h2>
+        <p id="resultHead">完成测评后在这里查看总评、四维能力、分类等级与练习顺序。</p>
+      </div>
+      <div id="resultBody"></div>
+    </section>
+
+    <!-- SECTION: view-history -->
+    <section class="view" id="view-history" role="tabpanel">
+      <div class="view-head">
+        <h2>历史记录</h2>
+        <p>每次完成测评都会存在这台设备的浏览器里，方便看进步曲线。清除浏览器数据会一并清空，重要结果请先导出。</p>
+      </div>
+      <div id="historyBody"></div>
+    </section>
+  </main>
+
+  <!-- SECTION: footer -->
+  <footer class="footer">
+    <div class="credit" id="footCredit"></div>
+    <div>本页为独立评估工具，不隶属于任何字卡网站，不读取也不连接站内数据。</div>
+    <div>难度分值与题目属经验性评估，非官方标准；菜单名称以你所用版本的实际界面为准。</div>
+    <div>字卡传讯类网站通常禁止未满 18 周岁的未成年人使用，本页沿用同一前提。</div>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* SECTION: data - 字卡难度与熟练度评估数据 */
+/* 说明：难度分值与题目为通用经验向评估，非官方标准；具体菜单路径以站内实际版本为准。 */
+window.CARD_ASSESS_DATA = {
+  meta: {
+    name: '字卡难度与熟练度评估',
+    version: '1.0.0',
+    credit: '灵感来源：Mochi 字卡 · 小红书 @言序（1842523578）',
+    notes: [
+      '本页为独立评估工具，不隶属于任何字卡网站，也不读取、不连接站内数据。',
+      '难度分值与题目依据字卡传讯的通用玩法与公开使用说明整理，属经验性评估，非官方标准。',
+      '题目中提到的菜单名称以你所用版本的实际界面为准，路径可能因版本不同而有差异。',
+      '灵感来源署名：Mochi 字卡 · 小红书 @言序（1842523578）。二次修改请保留署名。',
+      '字卡传讯类网站通常禁止未满 18 周岁的未成年人使用，本页沿用同一前提。'
+    ]
+  },
+
+  /* SECTION: data-axes */
+  axes: [
+    { id: 'cog', name: '认知', desc: '知道每个机制到底管什么' },
+    { id: 'ops', name: '操作', desc: '能把设置真正调到位' },
+    { id: 'cre', name: '创作', desc: '能写出贴合人设的字卡内容' },
+    { id: 'dbg', name: '排障', desc: '出问题能自己定位原因' }
+  ],
+
+  /* SECTION: data-diffdims */
+  diffDims: [
+    { id: 'entry', name: '上手门槛', desc: '第一次用起来要跨多少步' },
+    { id: 'conf', name: '配置复杂度', desc: '要调的开关、概率、分组有多少层' },
+    { id: 'risk', name: '踩坑风险', desc: '不看说明就容易出错的程度' },
+    { id: 'cre', name: '内容创作', desc: '写出好内容需要的功力' }
+  ],
+
+  /* SECTION: data-levels */
+  levels: [
+    { min: 0, name: '未接触', tag: '还没开始', color: '#C9B8AE' },
+    { min: 16, name: '入门', tag: '摸到边了', color: '#A8C7A0' },
+    { min: 36, name: '上手', tag: '能跑起来', color: '#8FBEE0' },
+    { min: 61, name: '熟练', tag: '用得顺了', color: '#E8A87C' },
+    { min: 81, name: '精通', tag: '吃透了', color: '#FF8FAB' }
+  ],
+
+  /* SECTION: data-titles */
+  titles: [
+    { min: 0, name: '路过看看', line: '还没真正开始用，先看完难度图鉴再决定要不要投入。' },
+    { min: 16, name: '字卡新手', line: '基础互动已经能跑，但大部分设置还停在出厂状态。' },
+    { min: 36, name: '摸鱼学徒', line: '知道该调什么了，只是还没形成自己的一套配置习惯。' },
+    { min: 56, name: '字卡熟手', line: '日常使用基本顺手，遇到怪现象也能猜个八九不离十。' },
+    { min: 71, name: '摸鱼达人', line: '机制之间的相互影响已经摸清，会主动做取舍。' },
+    { min: 86, name: '字卡调教师', line: '能把一堆开关配成刚好合适的节奏，内容也有自己的风格。' },
+    { min: 96, name: '摸鱼宗师', line: '机制、内容、排障三线都稳，基本不需要别人帮忙看问题。' }
+  ],
+
+  /* SECTION: data-subjects */
+  subjects: [
+    { id: 'self', name: '我自己', label: '我自己', hint: '按你的真实使用情况作答', pronoun: '你' },
+    { id: 'ta', name: 'TA', label: 'TA（梦角）', hint: '按 TA 在对话里表现出的水平作答', pronoun: 'TA' },
+    { id: 'other', name: '对方', label: '指定昵称', hint: '按你平时观察到的情况替对方作答', pronoun: '' }
+  ],
+
+  /* SECTION: data-categories */
+  categories: [
+    {
+      id: 'main',
+      name: '主字卡',
+      sub: '聊天字卡主体',
+      icon: '💬',
+      role: '回复的骨架。TA 说什么、一次说几条、语气长什么样，主要由这一层决定。',
+      diff: { entry: 2, conf: 5, risk: 4, cre: 5 },
+      summary: '用起来最简单，调到合适最难。绝大多数「回复太碎」「刷屏」「语气不对」的问题，根子都在这一层的分组和概率没配过。',
+      pits: [
+        '默认聊天字卡自带的词典字卡数量很大，不关掉就会被稀释成一堆碎片式短回复。',
+        '把「回复条数最少／最多」当成 TA 一天最多发几条来用，调成 1～2 之后发现照样刷屏。',
+        '系统内置字卡处于锁定状态时，如果自建字卡一张都没加，回复会明显单薄。',
+        '分组和单张字卡都能单独关闭，但很多人不知道粒度可以细到单卡，于是干脆全开或全关。',
+        '回复概率与触发时间全部是公开可调的，不动就等于一直在用出厂设置。'
+      ],
+      tips: [
+        '分组按「称呼／情绪／需求／日常／状态」拆，先关不需要的，再补自己写的。',
+        '想让每句话的回应变短，把回复条数两项都调成 1 并关掉「多字卡回复」，这比调概率直接。',
+        '同一个意图写 3～5 条变体，避免每次抽到同一句。'
+      ],
+      next: '先把默认词典里用不上的分组关掉，再补 10 张自己写的卡。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '你知道「回复条数最少／最多」这两项管的到底是什么吗？',
+          qOther: '据你观察，{name} 知道「回复条数最少／最多」管的是什么吗？',
+          opts: [
+            { t: '不太清楚，一直以为是 TA 一天最多发几条', s: 0 },
+            { t: '大概知道和回复数量有关，没细究', s: 1 },
+            { t: '知道是「我每发 1 条，TA 跟着回几条」', s: 2 },
+            { t: '知道它只管这一件事，也清楚哪些互动不占这个名额', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '想让 TA 的回复变短、少刷屏时，你会怎么做？',
+          qOther: '想让回复变短、少刷屏时，{name} 会怎么做？',
+          opts: [
+            { t: '没动过相关设置', s: 0 },
+            { t: '只调过回复条数', s: 1 },
+            { t: '会把回复条数两项调成 1，并关掉「多字卡回复」', s: 2 },
+            { t: '同时按分组或单卡粒度关掉不合适的字卡，再按需开总量限流', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你的主字卡是怎么组织的？',
+          qOther: '{name} 的主字卡是怎么组织的？',
+          opts: [
+            { t: '只用默认内容，没建过分组', s: 0 },
+            { t: '有少量自建卡，没什么分组逻辑', s: 1 },
+            { t: '按主题分组，找起来有头绪', s: 2 },
+            { t: '分组清晰，会定期清理低频卡，同一意图写多条变体', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: 'TA 只回了一个「已读」，一条内容都没有，你会怎么排查？',
+          qOther: '遇到 TA 只回一个「已读」、一条内容都没有，{name} 会怎么排查？',
+          opts: [
+            { t: '认为网站坏了', s: 0 },
+            { t: '刷新重开，或者再发一句试试', s: 1 },
+            { t: '检查是不是开了总量限流、窗口额度刚好满了', s: 2 },
+            { t: '知道额度满时刚说的那句仍会保底换 1 条回应，所以会继续查自建字卡是否为空、分组或单卡是否被关、是否处于锁定中、本地存储是否已写满', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'mood',
+      name: '情绪字卡链',
+      sub: '聊天情绪 · TA 的心情 · 聊天回应',
+      icon: '🫧',
+      role: '让对话有情绪起伏的一层。三条链互相咬合：有情绪、有心情分享、有对应的回应。',
+      diff: { entry: 1, conf: 3, risk: 2, cre: 4 },
+      summary: '门槛最低但最容易被误解的一层。它在系统内置字卡锁定时照常触发，所以「什么都没解锁却还有情绪反应」是设计如此，不是 bug。',
+      pits: [
+        '以为内置字卡锁定就等于全部功能停用，于是误判情绪链也坏了。',
+        'TA 的心情分享不占「回复条数」名额，是刷屏的常见来源之一，只调回复条数管不住它。',
+        '情绪卡写得太单一，导致不管发生什么，TA 永远同一个语气。',
+        '只写情绪、不写对应的回应卡，情绪抛出来没人接。'
+      ],
+      tips: [
+        '情绪卡与回应卡成对写：抛出一种情绪，就要有对应的接法。',
+        '同一情绪分强度梯度写（有点在意 → 很在意 → 委屈到不行），层次会立刻出来。',
+        '嫌心情分享太多时，从它自己的概率或条数入手，别指望回复条数能拦住。'
+      ],
+      next: '给最常出现的三种情绪各补 3 条变体和对应回应。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '系统内置字卡处于锁定状态时，情绪字卡这一层会怎样？',
+          qOther: '{name} 知道系统内置字卡锁定时，情绪字卡这一层会怎样吗？',
+          opts: [
+            { t: '不知道有锁定这回事', s: 0 },
+            { t: '以为所有功能都跟着停了', s: 1 },
+            { t: '知道自己建的字卡不受影响', s: 2 },
+            { t: '知道聊天情绪、TA 的心情、聊天回应这三条互动链不受锁定影响，照常触发', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: '发现「开关都开了却没效果」，你的第一步是查什么？',
+          qOther: '遇到「开关都开了却没效果」，{name} 的第一步会查什么？',
+          opts: [
+            { t: '直接认定网站坏了', s: 0 },
+            { t: '刷新或重开一次看看', s: 1 },
+            { t: '检查是不是系统内置字卡正在锁定中', s: 2 },
+            { t: '依次排查锁定状态、分组或单卡是否被关闭、自建字卡是否为空、限流是否拦掉了', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你的情绪字卡写到什么层次了？',
+          qOther: '{name} 的情绪字卡写到什么层次了？',
+          opts: [
+            { t: '没自己写过', s: 0 },
+            { t: '只有几条通用情绪', s: 1 },
+            { t: '覆盖主要情绪，且各有对应回应卡', s: 2 },
+            { t: '情绪分强度梯度，每种配多条变体与完整回应链', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: 'TA 的语气和用词习惯，你在内容里立起来了吗？',
+          qOther: '{name} 有没有在内容里把 TA 的语气和用词习惯立起来？',
+          opts: [
+            { t: '没考虑过人设这一层', s: 0 },
+            { t: '偶尔会注意一下语气', s: 1 },
+            { t: '有固定的称呼、口头禅和语气习惯', s: 2 },
+            { t: '称呼、口头禅、专属梗和情绪强度梯度都成套，读起来是同一个人在说话', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'kaomoji',
+      name: '颜文字',
+      sub: '纯文本符号表情',
+      icon: '٩(ˊᗜˋ*)و',
+      role: '最轻量的氛围层。不占图片素材、不占存储，纯文本就能让语气软下来。',
+      diff: { entry: 1, conf: 2, risk: 2, cre: 3 },
+      summary: '上手几乎零成本，坑全在跨设备显示。同一个颜文字在不同系统、不同浏览器上可能变形、占两行，或者因为不可见字符导致触发词匹配失败。',
+      pits: [
+        '字体差异导致某些颜文字在部分设备上变形，或宽度不一致。',
+        '过长的颜文字在气泡里换行，把一句话的节奏切断。',
+        '全角半角混排让对齐看起来很怪。',
+        '复制粘贴时带进不可见字符，写在触发词里就会匹配不上。'
+      ],
+      tips: [
+        '把常用颜文字单独建一个分组，靠分组开关整体启停，比逐张改快得多。',
+        '长度控制在气泡一行内，一般 8～12 个字符比较稳。',
+        '优先用纯文本符号而不是图片表情，跨设备一致性最好。'
+      ],
+      next: '给颜文字单独建一个分组，并统一控制长度。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '颜文字在不同设备上的显示差异，你了解多少？',
+          qOther: '{name} 了解颜文字在不同设备上的显示差异吗？',
+          opts: [
+            { t: '没注意过这事', s: 0 },
+            { t: '知道可能显示不太一样', s: 1 },
+            { t: '知道字体差异会导致变形或占行', s: 2 },
+            { t: '知道全角半角混排、过长换行、不可见字符都会出问题，并会主动规避', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '想让颜文字能整体开关，你会怎么做？',
+          qOther: '想让颜文字能整体开关，{name} 会怎么做？',
+          opts: [
+            { t: '直接写在每张卡的内容里', s: 0 },
+            { t: '需要时复制粘贴过去', s: 1 },
+            { t: '单独建一个颜文字分组，用分组开关控制', s: 2 },
+            { t: '分组加单卡双层控制，并把不适用的部分单独关掉', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你用的颜文字贴合 TA 的人设吗？',
+          qOther: '{name} 用的颜文字贴合人设吗？',
+          opts: [
+            { t: '基本没用颜文字', s: 0 },
+            { t: '随手用几个常见的', s: 1 },
+            { t: '有一套固定常用组合，风格还算统一', s: 2 },
+            { t: '按人设和情绪定制，长度控制在气泡内不换行', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你会怎么为不同情绪搭配颜文字？',
+          qOther: '{name} 会为不同情绪搭配颜文字吗？',
+          opts: [
+            { t: '基本就那一两个来回用', s: 0 },
+            { t: '高兴、无语各有一个常用的', s: 1 },
+            { t: '有一套对应不同情绪的颜文字', s: 2 },
+            { t: '按情绪强度和场景细分，撒娇、无奈、生气、心虚各有对应的，且风格统一', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'sticker',
+      name: '表情包',
+      sub: '图片素材类字卡',
+      icon: '🖼️',
+      role: '视觉表现力最强的一层，也是本地存储压力最大的一层。',
+      diff: { entry: 2, conf: 4, risk: 5, cre: 3 },
+      summary: '难点不在写内容，在设备与存储。素材占满浏览器本地配额后会出现写入失败，界面显示的是最后一次写得进去的旧数据；导入按钮点了没反应，多半是浏览器兼容问题而不是功能坏了。',
+      pits: [
+        '图片素材持续占用本地存储，写满后每次写入都失败，收藏看起来变少、显示的是旧账。',
+        '点「导入／添加」按钮没反应、系统相册弹不出来，常见于手机自带浏览器。',
+        '部分系统需要先在浏览器里复制链接新建下载，才能顺利导入素材。',
+        '图多了页面变重，后台更容易被系统冻结或回收，消息就断流。',
+        '自行导入的素材，版权与合法性由使用者本人负责。'
+      ],
+      tips: [
+        '定期到存储查看入口看占用，把最占地方的数据清掉，页面越轻越不容易被丢。',
+        '安卓优先用 Chrome 或 Edge，自带浏览器出现「点了没反应」先换浏览器验证一次。',
+        '控制单个表情包的张数，优先用体积小的图。'
+      ],
+      next: '先看一次存储占用，清掉最占地方的那批素材。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '表情包素材对本地存储的影响，你清楚吗？',
+          qOther: '{name} 清楚表情包素材对本地存储的影响吗？',
+          opts: [
+            { t: '没想过这事', s: 0 },
+            { t: '知道会占一些空间', s: 1 },
+            { t: '知道占满配额会导致写入失败', s: 2 },
+            { t: '知道会出现写入失败、界面显示旧数据、收藏看起来变少，并知道该以库里的数据为准', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: '点「导入／添加」按钮完全没反应，你怎么判断？',
+          qOther: '遇到「导入／添加」按钮没反应，{name} 会怎么判断？',
+          opts: [
+            { t: '认为网站坏了', s: 0 },
+            { t: '多点几次或刷新', s: 1 },
+            { t: '换 Chrome 或 Edge 再试一次', s: 2 },
+            { t: '先换浏览器验证，再查存储配额与本机系统的导入方式，必要时清掉最占地方的数据后重试', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '你会怎么控制表情包带来的存储压力？',
+          qOther: '{name} 会怎么控制表情包带来的存储压力？',
+          opts: [
+            { t: '没管过', s: 0 },
+            { t: '想起来的时候删一些', s: 1 },
+            { t: '会到存储查看入口看具体占用', s: 2 },
+            { t: '定期查看并清理、控制单包张数，导出备份后再精简', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'poke',
+      name: '拍一拍',
+      sub: '动作类互动',
+      icon: '👋',
+      role: '最轻的主动互动。不打断对话，靠一句动作文案制造存在感。',
+      diff: { entry: 1, conf: 2, risk: 2, cre: 4 },
+      summary: '操作最简单，天花板在文案。同一句动作反复出现很快就腻，能不能写出成体系、贴合人设的变体，直接决定这一层的体验。',
+      pits: [
+        '文案过长被显示位截断，看起来像半句话。',
+        '动作频率没设上限，短时间内连续触发变成刷屏。',
+        '文案风格和人设不符，一句话就出戏。',
+        '只写一两条，重复几次之后新鲜感就没了。'
+      ],
+      tips: [
+        '用「名词＋动词」结构，短而有画面感，例如「拍了拍我的猫爪并被肉垫弹开」。',
+        '同一个动作写 3 条以上变体，避免重复感。',
+        '频率靠概率控制，再配合总量限流兜底，既保留互动又不刷屏。'
+      ],
+      next: '给常用的那个动作补 3 条以上不同场景的变体。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '拍一拍这类动作互动的文案，你知道有哪些限制吗？',
+          qOther: '{name} 知道拍一拍这类动作互动的文案有哪些限制吗？',
+          opts: [
+            { t: '不知道文案能自定义', s: 0 },
+            { t: '知道文字能改', s: 1 },
+            { t: '知道有长度限制，过长会被截断', s: 2 },
+            { t: '知道长度限制、频率可调，也知道文案风格必须贴人设', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你的拍一拍文案是什么水平？',
+          qOther: '{name} 的拍一拍文案是什么水平？',
+          opts: [
+            { t: '用默认文案', s: 0 },
+            { t: '改过一两句', s: 1 },
+            { t: '有几条自己写的，结构清楚', s: 2 },
+            { t: '成体系：多场景多变体、风格统一、不会有重复感', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '动作类互动出现得太频繁，你会怎么处理？',
+          qOther: '动作类互动太频繁时，{name} 会怎么处理？',
+          opts: [
+            { t: '忍着', s: 0 },
+            { t: '直接把整个功能关掉', s: 1 },
+            { t: '调低它的概率或频率', s: 2 },
+            { t: '调概率，再配合总量限流，保留互动但不让它刷屏', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'dict',
+      name: '词典与拼字',
+      sub: '词典字卡 · 词典拼字 · 多回复逐卡连发',
+      icon: '📖',
+      role: '把碎片拼成完整表达的一层，也是刷屏的主力来源。',
+      diff: { entry: 4, conf: 5, risk: 4, cre: 5 },
+      summary: '整个体系里最硬的一块。「多回复逐卡连发」默认不受回复条数限制，只有总量限流能一起拦；默认词典内容量大，不筛选就会把回复冲得很碎。',
+      pits: [
+        '默认词典字卡数量很多，不适用的话建议直接关掉，留着只会稀释回复。',
+        '「多回复逐卡连发」默认不受回复条数限制，调回复条数完全拦不住它。',
+        '触发词写法不对就匹配不上，看起来像功能没生效。',
+        '批量导入对文件格式和编码有要求，编码不对会导入失败或乱码。',
+        '系统内置词典在锁定状态下是停用的，自建内容不受影响。'
+      ],
+      tips: [
+        '只留用得到的词条，宁可少而准，不要多而碎。',
+        '靠总量限流兜住连发：窗口 5 分钟、上限 15 条起步，再按实际感受微调。',
+        '批量导入前先备份，并先用小批量试一次格式和编码。'
+      ],
+      next: '把词典里用不上的分组关掉，再用总量限流兜住逐卡连发。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '「多回复逐卡连发」和「回复条数」是什么关系？',
+          qOther: '{name} 清楚「多回复逐卡连发」和「回复条数」的关系吗？',
+          opts: [
+            { t: '不知道有这个功能', s: 0 },
+            { t: '以为它受回复条数管', s: 1 },
+            { t: '知道它默认不受回复条数限制', s: 2 },
+            { t: '知道它是额外多发的来源之一，而且只有总量限流能把它一起拦住', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '批量导入字卡时你会注意什么？',
+          qOther: '批量导入字卡时，{name} 会注意什么？',
+          opts: [
+            { t: '没做过批量导入', s: 0 },
+            { t: '直接选文件导入', s: 1 },
+            { t: '知道要用规定的文件格式', s: 2 },
+            { t: '知道编码要对、先小批量试、导入前备份，并区分覆盖与追加', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: '默认词典让回复变得很碎，你会怎么办？',
+          qOther: '发现回复被默认词典冲得很碎，{name} 会怎么办？',
+          opts: [
+            { t: '没意识到问题出在词典', s: 0 },
+            { t: '减少自己发消息的频率', s: 1 },
+            { t: '关掉词典相关的开关', s: 2 },
+            { t: '按分组粒度关掉不需要的词典，只留用得到的词条，必要时用限流兜住连发', s: 3 }
+          ]
+        },
+        {
+          axis: 'cre',
+          qSelf: '你写的拼字词条，连贯度和人设贴合度如何？',
+          qOther: '{name} 写的拼字词条，连贯度和人设贴合度如何？',
+          opts: [
+            { t: '只用默认词条，没自己写过', s: 0 },
+            { t: '写过一些，但拼出来经常前后不搭', s: 1 },
+            { t: '词条成套，拼出来大多能读通', s: 2 },
+            { t: '按语气和人设设计词条，多回复逐卡连发时读起来是一段连贯的话', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'gift',
+      name: '心意与意图',
+      sub: '红包 · 心意币 · 听歌邀请 · 存钱罐',
+      icon: '🎁',
+      role: '把情绪落成具体动作的一层：给东西、请听歌、存起来。',
+      diff: { entry: 3, conf: 4, risk: 3, cre: 3 },
+      summary: '这一类互动都不占「回复条数」名额，所以关了回复条数照样会弹。同时其中的当刻操作记录又不占限流额度，两套规则要分开理解。',
+      pits: [
+        '以为把回复条数调小了就不会再弹红包或邀请，实际它们走的是另一套名额。',
+        '上传的音乐素材同样占本地存储，量大之后会挤压其他数据。',
+        '红包领取退回、存钱罐结算这类记录是你当刻操作引发的，不占限流额度，看到不必以为是异常。',
+        '音乐互动的系统台词照常计入限流额度，也会被拦。'
+      ],
+      tips: [
+        '用各自的概率和时间设置控制出现频率，比一刀切关掉更自然。',
+        '想统一兜底就开总量限流，注意音乐互动的台词会被计入。',
+        '音乐素材控制数量，避免和表情包一起把存储吃满。'
+      ],
+      next: '把最常弹出的那类互动的概率调低一档，而不是直接关掉。',
+      questions: [
+        {
+          axis: 'cog',
+          qSelf: '红包、心意币、听歌邀请这类互动，占不占「回复条数」的名额？',
+          qOther: '{name} 知道红包、心意币、听歌邀请占不占「回复条数」名额吗？',
+          opts: [
+            { t: '不知道有这些互动', s: 0 },
+            { t: '以为占', s: 1 },
+            { t: '知道不占，会额外多发', s: 2 },
+            { t: '知道不占，也清楚哪些当刻操作记录连限流额度都不占', s: 3 }
+          ]
+        },
+        {
+          axis: 'ops',
+          qSelf: '想让这些互动少出现一点，你会调什么？',
+          qOther: '想让这类互动少出现，{name} 会调什么？',
+          opts: [
+            { t: '没调过', s: 0 },
+            { t: '直接关掉某个开关', s: 1 },
+            { t: '调它们的出现概率或时间', s: 2 },
+            { t: '调概率，再用总量限流统一兜底，并知道音乐互动的台词会被计入', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: '只发了一句话，却收到红包、心情分享加好几条回复，你怎么判断？',
+          qOther: '只说一句话却收到红包、心情分享加好几条回复，{name} 会怎么判断？',
+          opts: [
+            { t: '认为是 bug', s: 0 },
+            { t: '觉得奇怪但没深究', s: 1 },
+            { t: '知道这些属于不占回复条数的额外类型', s: 2 },
+            { t: '能逐项归因到逐卡连发、撤回补发、心情分享、红包心意币听歌邀请、主动发送，并分别控制', s: 3 }
+          ]
+        }
+      ]
+    },
+
+    {
+      id: 'env',
+      name: '环境与调校',
+      sub: '限流 · 屏幕适配 · 后台通知 · 数据备份',
+      icon: '🛠️',
+      role: '不是字卡内容本身，但决定字卡好不好用、数据还在不在。',
+      diff: { entry: 3, conf: 5, risk: 5, cre: 1 },
+      summary: '踩坑代价最高的一类。数据被系统清掉找不回来、通知全绿却收不到、页面错位凑合用，全都出在这一层没配过。',
+      pits: [
+        '限流窗口拉到 60 分钟又把上限压到 1 条，等于一小时只回你一句。',
+        'iOS Safari 连续 7 天没打开会自动清空该站全部本地数据，这是系统隐私策略，任何网站都躲不过。',
+        '浏览器直接打开和从桌面图标进入是两套独立存储，数据互不相通，也不能同时打开使用。',
+        '安卓自带浏览器容易出现按钮没反应、页面错位、卡顿，换 Chrome 或 Edge 通常就好。',
+        '手机开了勿扰或专注模式时，通知会被系统静默收进通知栏，站内测试全绿也照样收不到横幅。',
+        '后台保活会占用手机音频通道，导致其他 App 的音乐忽响忽轻。'
+      ],
+      tips: [
+        '限流从窗口 5 分钟、上限 15 条起步，还多就把上限往下调、窗口往上调。',
+        '屏幕错位先跑一次屏幕适配诊断看差多少像素，再去拖对应的滑杆，双击滑杆可回默认。',
+        '定期导出数据，并把备份文件多处留存；换用法之前先导出，到新用法里再导入。',
+        'iPhone 用 Safari 的「添加到主屏幕」，其他浏览器的添加只是快捷方式，拿不到同样的豁免。'
+      ],
+      next: '现在就导出一次数据备份，并把文件存到两个以上地方。',
+      questions: [
+        {
+          axis: 'ops',
+          qSelf: '数据备份你是怎么做的？',
+          qOther: '{name} 的数据备份是怎么做的？',
+          opts: [
+            { t: '没备份过', s: 0 },
+            { t: '备份过一次', s: 1 },
+            { t: '会定期用导出功能备份', s: 2 },
+            { t: '定期导出且多处留存，换用法前先导出、到新环境再导入恢复', s: 3 }
+          ]
+        },
+        {
+          axis: 'dbg',
+          qSelf: '页面显示错位、文字偏小或被状态栏遮挡，你怎么处理？',
+          qOther: '遇到页面错位、文字偏小或被状态栏遮挡，{name} 会怎么处理？',
+          opts: [
+            { t: '凑合用或者干脆换一个', s: 0 },
+            { t: '刷新重开', s: 1 },
+            { t: '知道有屏幕适配微调的滑杆可以自己调', s: 2 },
+            { t: '先跑适配诊断看差多少像素，再拖对应轴，必要时配合聊天里的顶栏底栏位置滑杆', s: 3 }
+          ]
+        },
+        {
+          axis: 'cog',
+          qSelf: '后台通知收不到，你了解哪些可能原因？',
+          qOther: '{name} 了解后台通知收不到有哪些可能原因吗？',
+          opts: [
+            { t: '不知道有后台通知这个功能', s: 0 },
+            { t: '知道要把开关打开', s: 1 },
+            { t: '知道要开后台保活，还要给浏览器通知权限', s: 2 },
+            { t: '知道权限、页面被冻结回收、设计上本就不弹、手机勿扰这四类原因，并会用测试功能定位', s: 3 }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+</script>
+<script>
+/* SECTION: app-boot */
+(function () {
+  'use strict';
+
+  var D = window.CARD_ASSESS_DATA;
+  if (!D) { return; }
+
+  var CATS = D.categories;
+  var AXES = D.axes;
+  var DIMS = D.diffDims;
+  var LS = {
+    subject: 'cardAssess.v1.subject',
+    name: 'cardAssess.v1.name',
+    progress: 'cardAssess.v1.progress',
+    history: 'cardAssess.v1.history'
+  };
+
+  /* SECTION: state */
+  var state = {
+    subjectId: 'self',
+    customName: '',
+    view: 'guide',
+    sort: 'diff',
+    openCards: {},
+    scope: 'all',        /* all | quick | custom */
+    scopeCats: null,     /* 自定义时选中的类别 id */
+    answers: {},         /* catId -> [scoreIndex|null,...] */
+    qIndex: 0,
+    running: false,
+    result: null,
+    flat: []             /* 本次测评的题目扁平序列 */
+  };
+
+  /* SECTION: utils */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text !== undefined && text !== null) { n.textContent = text; }
+    return n;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+  function store(key, val) {
+    try {
+      if (val === undefined) { return window.localStorage.getItem(key); }
+      if (val === null) { window.localStorage.removeItem(key); return; }
+      window.localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+    } catch (e) { /* 隐私模式或配额不足时静默降级为内存态 */ }
+  }
+
+  function storeJSON(key, val) {
+    if (val === undefined) {
+      var raw = store(key);
+      if (!raw) { return null; }
+      try { return JSON.parse(raw); } catch (e) { return null; }
+    }
+    store(key, val);
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $('#toast');
+    if (!t) { return; }
+    t.textContent = msg;
+    t.classList.add('show');
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+
+  function subjectLabel() {
+    var s = D.subjects.filter(function (x) { return x.id === state.subjectId; })[0] || D.subjects[0];
+    if (s.id === 'other') { return (state.customName || '').trim() || 'TA'; }
+    if (s.id === 'ta') { return 'TA'; }
+    return '我';
+  }
+
+  function subjectPronoun() {
+    var s = D.subjects.filter(function (x) { return x.id === state.subjectId; })[0] || D.subjects[0];
+    if (s.id === 'self') { return '你'; }
+    return subjectLabel();
+  }
+
+  function fillName(str) {
+    return String(str).replace(/\{name\}/g, subjectLabel());
+  }
+
+  function diffTotal(cat) {
+    var t = 0;
+    DIMS.forEach(function (d) { t += (cat.diff[d.id] || 0); });
+    return t;
+  }
+  var DIFF_MAX = DIMS.length * 5;
+
+  function diffPct(cat) { return Math.round(diffTotal(cat) / DIFF_MAX * 100); }
+
+  function levelOf(pct) {
+    var out = D.levels[0];
+    D.levels.forEach(function (l) { if (pct >= l.min) { out = l; } });
+    return out;
+  }
+  function titleOf(pct) {
+    var out = D.titles[0];
+    D.titles.forEach(function (t) { if (pct >= t.min) { out = t; } });
+    return out;
+  }
+
+  function catById(id) {
+    return CATS.filter(function (c) { return c.id === id; })[0] || null;
+  }
+
+  function maxPerCat(cat) { return cat.questions.length * 3; }
+
+  /* SECTION: progress-model */
+  function catPct(catId) {
+    var cat = catById(catId);
+    if (!cat) { return null; }
+    var ans = state.answers[catId] || [];
+    var got = 0, max = 0;
+    cat.questions.forEach(function (q, i) {
+      max += 3;
+      var a = ans[i];
+      if (a != null && q.opts[a]) { got += q.opts[a].s; }
+    });
+    return { got: got, max: max, pct: max ? Math.round(got / max * 100) : 0 };
+  }
+
+  function catAnswered(catId) {
+    var ans = state.answers[catId] || [];
+    return ans.some(function (a) { return a != null; });
+  }
+
+  /* SECTION: canvas-helpers */
+  function setupCanvas(cv, w, h) {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    cv.style.width = w + 'px';
+    cv.style.height = h + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return ctx;
+  }
+
+  function canvasSize(box, ratio) {
+    var w = box.clientWidth || 320;
+    return { w: w, h: Math.round(w * ratio) };
+  }
+
+  /* SECTION: hero-init */
+  function initMeta() {
+    var totalQ = 0;
+    CATS.forEach(function (c) { totalQ += c.questions.length; });
+    $('#badgeCat').textContent = CATS.length + ' 类字卡';
+    $('#badgeQ').textContent = totalQ + ' 道题';
+    $('#footCredit').textContent = D.meta.credit;
+  }
+
+  /* SECTION: subject-render */
+  function renderSubjects() {
+    var grid = $('#subjectGrid');
+    grid.innerHTML = '';
+    var icons = { self: '🙋', ta: '💗', other: '✏️' };
+    D.subjects.forEach(function (s) {
+      var b = el('button', 'subject-card');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', state.subjectId === s.id ? 'true' : 'false');
+      b.appendChild(el('div', 'sc-icon', icons[s.id] || '✨'));
+      b.appendChild(el('div', 'sc-name', s.label));
+      b.appendChild(el('div', 'sc-hint', s.hint));
+      b.addEventListener('click', function () {
+        state.subjectId = s.id;
+        store(LS.subject, s.id);
+        renderSubjects();
+        renderGuide();
+        var hooks = window.__CARD_ASSESS__.hooks;
+        if (state.running && hooks.renderQuestion) { hooks.renderQuestion(); }
+        if (state.result && hooks.renderResult) { hooks.renderResult(); }
+        if (hooks.renderSetup && !state.running) { hooks.renderSetup(); }
+      });
+      grid.appendChild(b);
+    });
+    var row = $('#nameRow');
+    row.classList.toggle('show', state.subjectId === 'other');
+  }
+
+  /* SECTION: guide-render */
+  function sortedCats() {
+    var arr = CATS.slice();
+    if (state.sort === 'diff') {
+      arr.sort(function (a, b) { return diffTotal(b) - diffTotal(a); });
+    } else if (state.sort === 'name') {
+      arr.sort(function (a, b) { return a.name.localeCompare(b.name, 'zh-Hans-CN'); });
+    }
+    return arr;
+  }
+
+  function dotsNode(v) {
+    var w = el('span', 'dots');
+    for (var i = 1; i <= 5; i++) {
+      w.appendChild(el('i', i <= v ? 'on' : ''));
+    }
+    return w;
+  }
+
+  function renderGuide() {
+    var list = $('#catList');
+    list.innerHTML = '';
+    sortedCats().forEach(function (cat) {
+      var id = cat.id;
+      var card = el('article', 'cat-card' + (state.openCards[id] ? ' open' : ''));
+      card.setAttribute('data-cat', id);
+
+      /* head */
+      var head = el('button', 'cat-head');
+      head.type = 'button';
+      head.setAttribute('aria-expanded', state.openCards[id] ? 'true' : 'false');
+      head.appendChild(el('div', 'cat-icon', cat.icon));
+
+      var main = el('div', 'cat-main');
+      var nameRow = el('div', 'cat-name');
+      nameRow.appendChild(document.createTextNode(cat.name));
+      var lvTag = el('span');
+      lvTag.style.cssText = 'font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:#FFF1F5;color:#C4546E;';
+      var dt = diffTotal(cat);
+      lvTag.textContent = dt >= 17 ? '高难度' : (dt >= 13 ? '中难度' : '易上手');
+      nameRow.appendChild(lvTag);
+      main.appendChild(nameRow);
+      main.appendChild(el('div', 'cat-sub', cat.sub));
+      head.appendChild(main);
+
+      var sc = el('div', 'cat-score');
+      sc.appendChild(el('div', 'n', String(dt)));
+      sc.appendChild(el('span', 'u', '/ ' + DIFF_MAX + ' 难度'));
+      head.appendChild(sc);
+      head.appendChild(el('div', 'cat-toggle', '▼'));
+
+      head.addEventListener('click', function () {
+        state.openCards[id] = !state.openCards[id];
+        renderGuide();
+        syncExpandAll();
+      });
+      card.appendChild(head);
+
+      /* body */
+      var body = el('div', 'cat-body');
+      body.appendChild(el('p', 'cat-role', cat.role));
+      body.appendChild(el('div', 'cat-summary', cat.summary));
+
+      body.appendChild(el('div', 'block-title', '难度拆解'));
+      var dg = el('div', 'dim-grid');
+      DIMS.forEach(function (d) {
+        var v = cat.diff[d.id] || 0;
+        var box = el('div', 'dim');
+        var top = el('div', 'dim-top');
+        top.appendChild(el('span', 'dim-name', d.name));
+        top.appendChild(dotsNode(v));
+        box.appendChild(top);
+        box.appendChild(el('div', 'dim-desc', d.desc));
+        dg.appendChild(box);
+      });
+      body.appendChild(dg);
+
+      body.appendChild(el('div', 'block-title', '常见的坑'));
+      var pitWrap = el('div');
+      cat.pits.forEach(function (p) { pitWrap.appendChild(el('div', 'pit-item', p)); });
+      body.appendChild(pitWrap);
+
+      body.appendChild(el('div', 'block-title', '破解思路'));
+      var tipWrap = el('div');
+      cat.tips.forEach(function (p) { tipWrap.appendChild(el('div', 'tip-item', p)); });
+      body.appendChild(tipWrap);
+
+      var nb = el('div', 'next-box');
+      nb.appendChild(el('b', null, '下一步：'));
+      nb.appendChild(document.createTextNode(cat.next));
+      body.appendChild(nb);
+
+      card.appendChild(body);
+      list.appendChild(card);
+    });
+    syncExpandAll();
+  }
+
+  function syncExpandAll() {
+    var btn = $('#expandAll');
+    var allOpen = CATS.every(function (c) { return !!state.openCards[c.id]; });
+    btn.setAttribute('aria-pressed', allOpen ? 'true' : 'false');
+    btn.textContent = allOpen ? '全部收起' : '全部展开';
+  }
+
+  /* SECTION: guide-events */
+  function bindGuide() {
+    $$('.chip[data-sort]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.sort = b.getAttribute('data-sort');
+        $$('.chip[data-sort]').forEach(function (x) {
+          x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+        });
+        renderGuide();
+      });
+    });
+    $('#expandAll').addEventListener('click', function () {
+      var allOpen = CATS.every(function (c) { return !!state.openCards[c.id]; });
+      CATS.forEach(function (c) { state.openCards[c.id] = !allOpen; });
+      renderGuide();
+    });
+  }
+
+  /* SECTION: app-expose */
+  window.__CARD_ASSESS__ = {
+    D: D, state: state, CATS: CATS, AXES: AXES, DIMS: DIMS, LS: LS,
+    $: $, $$: $$, el: el, esc: esc, clamp: clamp,
+    store: store, storeJSON: storeJSON, toast: toast,
+    subjectLabel: subjectLabel, subjectPronoun: subjectPronoun, fillName: fillName,
+    diffTotal: diffTotal, diffPct: diffPct, DIFF_MAX: DIFF_MAX,
+    levelOf: levelOf, titleOf: titleOf, catById: catById,
+    catPct: catPct, catAnswered: catAnswered, maxPerCat: maxPerCat,
+    setupCanvas: setupCanvas, canvasSize: canvasSize,
+    renderSubjects: renderSubjects, renderGuide: renderGuide, bindGuide: bindGuide,
+    initMeta: initMeta, sortedCats: sortedCats, hooks: {}
+  };
+})();
+
+/* SECTION: quiz-and-result */
+(function () {
+  'use strict';
+
+  var A = window.__CARD_ASSESS__;
+  if (!A) { return; }
+  var D = A.D, state = A.state, CATS = A.CATS, AXES = A.AXES, LS = A.LS;
+  var $ = A.$, el = A.el, clamp = A.clamp, toast = A.toast;
+  var store = A.store, storeJSON = A.storeJSON;
+  var fillName = A.fillName, subjectLabel = A.subjectLabel;
+
+  /* SECTION: quiz-scope */
+  function scopeCats() {
+    if (state.scope === 'quick') {
+      return ['main', 'kaomoji', 'sticker', 'poke'].map(A.catById).filter(Boolean);
+    }
+    if (state.scope === 'custom' && state.scopeCats && state.scopeCats.length) {
+      return CATS.filter(function (c) { return state.scopeCats.indexOf(c.id) >= 0; });
+    }
+    return CATS.slice();
+  }
+
+  function buildFlat() {
+    var flat = [];
+    scopeCats().forEach(function (cat) {
+      cat.questions.forEach(function (q, qi) {
+        flat.push({ cat: cat, q: q, qi: qi });
+      });
+    });
+    state.flat = flat;
+    return flat;
+  }
+
+  function answeredCount() {
+    var n = 0;
+    state.flat.forEach(function (f) {
+      var a = (state.answers[f.cat.id] || [])[f.qi];
+      if (a != null) { n++; }
+    });
+    return n;
+  }
+
+  function saveProgress() {
+    storeJSON(LS.progress, {
+      subjectId: state.subjectId,
+      customName: state.customName,
+      scope: state.scope,
+      scopeCats: state.scopeCats,
+      answers: state.answers,
+      qIndex: state.qIndex
+    });
+  }
+
+  /* SECTION: quiz-setup-render */
+  function renderSetup() {
+    var box = $('#quizSetup');
+    box.innerHTML = '';
+
+    var QUICK_IDS = ['main', 'kaomoji', 'sticker', 'poke'];
+    function countQ(ids) {
+      var n = 0;
+      CATS.forEach(function (c) { if (!ids || ids.indexOf(c.id) >= 0) { n += c.questions.length; } });
+      return n;
+    }
+    var scopes = [
+      { id: 'all', n: '完整测评', d: '全部 ' + CATS.length + ' 类共 ' + countQ(null) + ' 题，出完整雷达图、分类等级与练习顺序，结果最准。' },
+      { id: 'quick', n: '快速测评', d: '只测主字卡、颜文字、表情包、拍一拍共 ' + countQ(QUICK_IDS) + ' 题，适合先摸底或替 TA 快测。' },
+      { id: 'custom', n: '自选类别', d: '自己勾选要评的类别，只算选中部分，适合针对性诊断。' }
+    ];
+
+    var grid = el('div', 'scope-grid');
+    scopes.forEach(function (s) {
+      var b = el('button', 'scope-card');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', state.scope === s.id ? 'true' : 'false');
+      b.appendChild(el('div', 'sn', s.n));
+      b.appendChild(el('div', 'sd', s.d));
+      b.addEventListener('click', function () {
+        state.scope = s.id;
+        renderSetup();
+      });
+      grid.appendChild(b);
+    });
+    box.appendChild(grid);
+
+    if (state.scope === 'custom') {
+      var cw = el('div');
+      var ct = el('div', 'panel-title');
+      ct.appendChild(el('span', 'dot'));
+      ct.appendChild(document.createTextNode('勾选要评的类别'));
+      cw.appendChild(ct);
+      var cg = el('div', 'controls');
+      cg.style.marginTop = '10px';
+      CATS.forEach(function (c) {
+        var on = (state.scopeCats || []).indexOf(c.id) >= 0;
+        var chip = el('button', 'chip', c.icon + ' ' + c.name);
+        chip.type = 'button';
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+        chip.addEventListener('click', function () {
+          var arr = (state.scopeCats || []).slice();
+          var i = arr.indexOf(c.id);
+          if (i >= 0) { arr.splice(i, 1); } else { arr.push(c.id); }
+          state.scopeCats = arr;
+          renderSetup();
+        });
+        cg.appendChild(chip);
+      });
+      cw.appendChild(cg);
+      var cnt = (state.scopeCats || []).length;
+      var cq = 0;
+      CATS.forEach(function (c) {
+        if ((state.scopeCats || []).indexOf(c.id) >= 0) { cq += c.questions.length; }
+      });
+      cw.appendChild(el('div', 'panel-sub', '已选 ' + cnt + ' 类 · 共 ' + cq + ' 题'));
+      box.appendChild(cw);
+    }
+
+    var info = el('div', 'note-box');
+    info.style.marginTop = '16px';
+    var infoB = el('b', null, '测评说明');
+    info.appendChild(infoB);
+    var ul = el('ul');
+    [
+      '评估对象：' + subjectLabel() + '。评 TA 或指定昵称时，请按平时观察到的真实表现作答，不按理想状态打。',
+      '每题 0～3 分，四档对应「没接触过 → 知道有这回事 → 会正确操作 → 完全吃透」，跳过按未答计。',
+      '结果保存在这台设备的浏览器里，不会上传到任何地方。',
+      '难度分值与分级标准属经验性评估，非官方标准，用于自我参照即可。'
+    ].forEach(function (t) { ul.appendChild(el('li', null, t)); });
+    info.appendChild(ul);
+    box.appendChild(info);
+
+    var startWrap = el('div');
+    startWrap.style.marginTop = '16px';
+    var sb = el('button', 'btn primary block');
+    sb.type = 'button';
+    sb.setAttribute('data-primary-action', 'start-quiz');
+    var n = buildFlat().length;
+    sb.textContent = n > 0 ? ('开始测评 · ' + n + ' 题') : '请至少选择一个类别';
+    sb.disabled = n === 0;
+    sb.addEventListener('click', startQuiz);
+    startWrap.appendChild(sb);
+
+    var hasProgress = Object.keys(state.answers).some(function (k) {
+      return (state.answers[k] || []).some(function (v) { return v != null; });
+    });
+    if (hasProgress) {
+      var rb = el('button', 'btn block');
+      rb.type = 'button';
+      rb.style.marginTop = '8px';
+      rb.textContent = '清空上次未完成的作答';
+      rb.addEventListener('click', function () {
+        state.answers = {};
+        state.qIndex = 0;
+        store(LS.progress, null);
+        renderSetup();
+        toast('已清空未完成的作答');
+      });
+      startWrap.appendChild(rb);
+    }
+    box.appendChild(startWrap);
+  }
+
+  /* SECTION: quiz-run */
+  function startQuiz() {
+    if (!buildFlat().length) { toast('请至少选择一个类别'); return; }
+    state.running = true;
+    state.qIndex = clamp(state.qIndex, 0, state.flat.length - 1);
+    $('#quizSetup').style.display = 'none';
+    $('#quizRun').style.display = 'block';
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function exitQuiz() {
+    state.running = false;
+    $('#quizRun').style.display = 'none';
+    $('#quizSetup').style.display = 'block';
+    renderSetup();
+  }
+
+  function renderQuestion() {
+    var box = $('#quizRun');
+    box.innerHTML = '';
+    var f = state.flat[state.qIndex];
+    if (!f) { finishQuiz(); return; }
+    var cat = f.cat, q = f.q, qi = f.qi;
+    var total = state.flat.length;
+
+    var pw = el('div', 'progress-wrap');
+    var pt = el('div', 'progress-top');
+    var left = el('span');
+    left.innerHTML = '';
+    left.appendChild(document.createTextNode('第 '));
+    var b1 = el('b', null, String(state.qIndex + 1));
+    left.appendChild(b1);
+    left.appendChild(document.createTextNode(' / ' + total + ' 题'));
+    pt.appendChild(left);
+    pt.appendChild(el('span', null, cat.icon + ' ' + cat.name));
+    pw.appendChild(pt);
+    var pb = el('div', 'progress-bar');
+    var pf = el('div', 'progress-fill');
+    pf.style.width = ((state.qIndex + 1) / total * 100) + '%';
+    pb.appendChild(pf);
+    pw.appendChild(pb);
+    box.appendChild(pw);
+
+    var card = el('div', 'q-card');
+    var tags = el('div', 'q-tags');
+    var ax = AXES.filter(function (x) { return x.id === q.axis; })[0] || AXES[0];
+    tags.appendChild(el('span', 'q-tag', cat.icon + ' ' + cat.name));
+    tags.appendChild(el('span', 'q-tag axis', ax.name + ' · ' + ax.desc));
+    card.appendChild(tags);
+
+    var text = state.subjectId === 'self' ? q.qSelf : (q.qOther || q.qSelf);
+    card.appendChild(el('div', 'q-text', fillName(text)));
+
+    var cur = (state.answers[cat.id] || [])[qi];
+    var ol = el('div', 'opt-list');
+    ol.setAttribute('role', 'group');
+    q.opts.forEach(function (o, oi) {
+      var ob = el('button', 'opt');
+      ob.type = 'button';
+      ob.setAttribute('aria-pressed', cur === oi ? 'true' : 'false');
+      ob.appendChild(el('span', 'key', String.fromCharCode(65 + oi)));
+      ob.appendChild(el('span', null, o.t));
+      ob.addEventListener('click', function () {
+        if (!state.answers[cat.id]) { state.answers[cat.id] = []; }
+        state.answers[cat.id][qi] = oi;
+        saveProgress();
+        setTimeout(function () { goNext(); }, 160);
+      });
+      ol.appendChild(ob);
+    });
+    card.appendChild(ol);
+
+    var nav = el('div', 'q-nav');
+    var prev = el('button', 'btn', '上一题');
+    prev.type = 'button';
+    prev.disabled = state.qIndex === 0;
+    prev.addEventListener('click', function () {
+      if (state.qIndex > 0) { state.qIndex--; saveProgress(); renderQuestion(); }
+    });
+    nav.appendChild(prev);
+
+    var skip = el('button', 'btn ghost', '跳过');
+    skip.type = 'button';
+    skip.addEventListener('click', function () {
+      if (!state.answers[cat.id]) { state.answers[cat.id] = []; }
+      state.answers[cat.id][qi] = null;
+      saveProgress();
+      goNext();
+    });
+    nav.appendChild(skip);
+
+    var next = el('button', 'btn primary', state.qIndex === total - 1 ? '看结果' : '下一题');
+    next.type = 'button';
+    next.addEventListener('click', function () { goNext(); });
+    nav.appendChild(next);
+    card.appendChild(nav);
+
+    card.appendChild(el('div', 'q-note', '已答 ' + answeredCount() + ' / ' + total + ' 题 · 选完自动跳到下一题，可随时回退修改'));
+    box.appendChild(card);
+
+    var quit = el('button', 'btn ghost block');
+    quit.type = 'button';
+    quit.style.marginTop = '10px';
+    quit.textContent = '退出测评（进度已保存）';
+    quit.addEventListener('click', exitQuiz);
+    box.appendChild(quit);
+  }
+
+  function goNext() {
+    if (state.qIndex < state.flat.length - 1) {
+      state.qIndex++;
+      saveProgress();
+      renderQuestion();
+    } else {
+      finishQuiz();
+    }
+  }
+
+  /* SECTION: score-calc */
+  function computeResult() {
+    var cats = scopeCats().map(function (cat) {
+      var p = A.catPct(cat.id);
+      return {
+        id: cat.id, name: cat.name, icon: cat.icon, sub: cat.sub,
+        got: p ? p.got : 0, max: p ? p.max : 0, pct: p ? p.pct : 0,
+        diff: A.diffTotal(cat),
+        answered: A.catAnswered(cat.id)
+      };
+    });
+
+    var axisScore = {};
+    AXES.forEach(function (a) { axisScore[a.id] = { got: 0, max: 0 }; });
+    var totalGot = 0, totalMax = 0;
+    scopeCats().forEach(function (cat) {
+      cat.questions.forEach(function (q, qi) {
+        var a = (state.answers[cat.id] || [])[qi];
+        totalMax += 3;
+        axisScore[q.axis].max += 3;
+        if (a != null && q.opts[a]) {
+          totalGot += q.opts[a].s;
+          axisScore[q.axis].got += q.opts[a].s;
+        }
+      });
+    });
+
+    var axes = AXES.map(function (a) {
+      var s = axisScore[a.id];
+      return {
+        id: a.id, name: a.name, desc: a.desc,
+        got: s.got, max: s.max,
+        pct: s.max ? Math.round(s.got / s.max * 100) : 0,
+        covered: s.max > 0
+      };
+    });
+
+    var overall = totalMax ? Math.round(totalGot / totalMax * 100) : 0;
+
+    return {
+      ts: Date.now(),
+      subjectId: state.subjectId,
+      subject: subjectLabel(),
+      scope: state.scope,
+      scopeCats: scopeCats().map(function (c) { return c.id; }),
+      totalGot: totalGot, totalMax: totalMax, overall: overall,
+      title: A.titleOf(overall), level: A.levelOf(overall),
+      axes: axes, cats: cats
+    };
+  }
+
+  function finishQuiz() {
+    var r = computeResult();
+    state.result = r;
+    state.running = false;
+    saveHistory(r);
+    store(LS.progress, null);
+    state.answers = {};
+    state.qIndex = 0;
+    $('#quizRun').style.display = 'none';
+    $('#quizSetup').style.display = 'block';
+    renderSetup();
+    /* switchView 内部会在结果视图可见后再渲染，画布才能拿到真实容器宽度 */
+    switchView('result');
+  }
+
+  /* SECTION: history-store */
+  function getHistory() { return storeJSON(LS.history) || []; }
+
+  function saveHistory(r) {
+    var h = getHistory();
+    h.unshift({
+      ts: r.ts, subject: r.subject, subjectId: r.subjectId, scope: r.scope,
+      overall: r.overall, title: r.title.name, cats: r.cats, axes: r.axes
+    });
+    if (h.length > 30) { h = h.slice(0, 30); }
+    storeJSON(LS.history, h);
+  }
+
+  /* SECTION: result-render */
+  function renderResult() {
+    var body = $('#resultBody');
+    body.innerHTML = '';
+    var r = state.result;
+    if (!r) {
+      var e = el('div', 'empty');
+      e.appendChild(el('div', 'ei', '📋'));
+      e.appendChild(el('div', 'et', '还没有评估结果'));
+      e.appendChild(el('div', 'ed', '先去「开始测评」答一轮，这里会给出总评、四维能力雷达、分类等级和练习顺序。'));
+      var b = el('button', 'btn primary', '去做测评');
+      b.type = 'button';
+      b.setAttribute('data-primary-action', 'goto-quiz');
+      b.addEventListener('click', function () { switchView('quiz'); });
+      e.appendChild(b);
+      body.appendChild(e);
+      $('#resultHead').textContent = '完成测评后在这里查看总评、四维能力、分类等级与练习顺序。';
+      return;
+    }
+
+    $('#resultHead').textContent = '评估对象：' + r.subject + ' · 共 ' + r.cats.length + ' 类 · ' + r.totalMax + ' 分制';
+
+    /* hero */
+    var hero = el('div', 'result-hero');
+    var rw = el('div', 'ring-wrap');
+    var size = 132, stroke = 11, rad = (size - stroke) / 2;
+    var circ = 2 * Math.PI * rad;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+    var bgc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bgc.setAttribute('cx', size / 2); bgc.setAttribute('cy', size / 2); bgc.setAttribute('r', rad);
+    bgc.setAttribute('fill', 'none'); bgc.setAttribute('stroke', '#F3E2D9'); bgc.setAttribute('stroke-width', stroke);
+    svg.appendChild(bgc);
+    var fg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    fg.setAttribute('cx', size / 2); fg.setAttribute('cy', size / 2); fg.setAttribute('r', rad);
+    fg.setAttribute('fill', 'none'); fg.setAttribute('stroke', 'url(#rg)'); fg.setAttribute('stroke-width', stroke);
+    fg.setAttribute('stroke-linecap', 'round');
+    fg.setAttribute('stroke-dasharray', circ.toFixed(2));
+    fg.setAttribute('stroke-dashoffset', (circ * (1 - r.overall / 100)).toFixed(2));
+    var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    var grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    grad.setAttribute('id', 'rg');
+    grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
+    grad.setAttribute('x2', '100%'); grad.setAttribute('y2', '100%');
+    var s1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+    s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#FF8FAB');
+    var s2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+    s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#F0B567');
+    grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad); svg.appendChild(defs);
+    svg.appendChild(fg);
+    rw.appendChild(svg);
+    var rn = el('div', 'ring-num');
+    rn.appendChild(document.createTextNode(String(r.overall)));
+    rn.appendChild(el('small', null, r.totalGot + ' / ' + r.totalMax + ' 分'));
+    rw.appendChild(rn);
+    hero.appendChild(rw);
+
+    hero.appendChild(el('div', 'r-title', r.title.name));
+    hero.appendChild(el('div', 'r-subject', r.subject + ' · ' + (r.scope === 'quick' ? '快速测评' : (r.scope === 'custom' ? '自选类别' : '完整测评')) + ' · ' + fmtDate(r.ts)));
+    hero.appendChild(el('div', 'r-line', r.title.line));
+
+    var meta = el('div', 'r-meta');
+    meta.appendChild(el('span', 'badge accent', '综合等级 ' + r.level.name));
+    r.axes.filter(function (a) { return a.covered; }).forEach(function (a) {
+      meta.appendChild(el('span', 'badge', a.name + ' ' + a.pct + '%'));
+    });
+    hero.appendChild(meta);
+    body.appendChild(hero);
+
+    /* actions */
+    var acts = el('div', 'btn-row');
+    acts.style.marginTop = '12px';
+    var reBtn = el('button', 'btn primary', '重新测评');
+    reBtn.type = 'button';
+    reBtn.setAttribute('data-primary-action', 'restart');
+    reBtn.addEventListener('click', function () {
+      state.answers = {}; state.qIndex = 0; state.scope = 'all'; state.scopeCats = null;
+      renderSetup(); switchView('quiz');
+    });
+    acts.appendChild(reBtn);
+    var cpBtn = el('button', 'btn', '复制结果');
+    cpBtn.type = 'button';
+    cpBtn.addEventListener('click', function () { copyResult(r); });
+    acts.appendChild(cpBtn);
+    var exBtn = el('button', 'btn', '导出数据');
+    exBtn.type = 'button';
+    exBtn.addEventListener('click', function () { exportJSON(r); });
+    acts.appendChild(exBtn);
+    body.appendChild(acts);
+
+    /* axes */
+    body.appendChild(secTitle('四维能力'));
+    body.appendChild(el('div', 'sec-sub', '认知＝懂不懂机制，操作＝会不会调，创作＝内容写得好不好，排障＝出问题能不能自己定位。'));
+    var ac = el('div', 'panel radar-card');
+    var radarBox = el('div', 'radar-box');
+    var rcv = el('canvas');
+    rcv.setAttribute('aria-label', '四维能力雷达图');
+    rcv.setAttribute('role', 'img');
+    radarBox.appendChild(rcv);
+    ac.appendChild(radarBox);
+    var leg = el('div', 'axis-legend');
+    r.axes.forEach(function (a) {
+      var it = el('div', 'ax-item');
+      var top = el('div', 'ax-top');
+      top.appendChild(el('span', 'ax-name', a.name));
+      top.appendChild(el('span', 'ax-val', a.covered ? a.pct + '%' : '—'));
+      it.appendChild(top);
+      it.appendChild(el('div', 'ax-desc', a.covered ? a.desc : '本次测评范围未涉及'));
+      var tr = el('div', 'ax-track');
+      var fl = el('div', 'ax-fill');
+      fl.style.width = (a.covered ? a.pct : 0) + '%';
+      if (!a.covered) { fl.style.background = '#D9CBC4'; }
+      tr.appendChild(fl);
+      it.appendChild(tr);
+      leg.appendChild(it);
+    });
+    ac.appendChild(leg);
+    body.appendChild(ac);
+    var radarAxes = r.axes.filter(function (a) { return a.covered; });
+    requestAnimationFrame(function () {
+      if (radarAxes.length >= 3) { drawRadar(rcv, radarAxes); }
+      else {
+        var sz = A.canvasSize(radarBox, 0.6);
+        var ch = Math.min(sz.h, 200);
+        var c2 = A.setupCanvas(rcv, sz.w, ch);
+        c2.textAlign = 'center'; c2.textBaseline = 'middle';
+        c2.fillStyle = '#A79690';
+        c2.font = '12.5px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+        c2.fillText('本次涉及的维度不足 3 个，无法绘制雷达图', sz.w / 2, ch / 2 - 10);
+        c2.fillText('选择完整测评可查看四维雷达', sz.w / 2, ch / 2 + 12);
+      }
+    });
+
+    /* cat levels */
+    body.appendChild(secTitle('分类熟练度'));
+    body.appendChild(el('div', 'sec-sub', '每类的得分百分比与等级，未作答的类别会单独标出。'));
+    var cll = el('div', 'cat-level-list');
+    r.cats.slice().sort(function (a, b) { return b.pct - a.pct; }).forEach(function (c) {
+      var lv = A.levelOf(c.pct);
+      var it = el('div', 'cl-item' + (c.answered ? '' : ' unanswered'));
+      var top = el('div', 'cl-top');
+      top.appendChild(el('span', 'cl-icon', c.icon));
+      top.appendChild(el('span', 'cl-name', c.name));
+      var tag = el('span', 'cl-lv', c.answered ? lv.name : '未作答');
+      tag.style.background = c.answered ? lv.color : '#C9B8AE';
+      top.appendChild(tag);
+      top.appendChild(el('span', 'cl-pct', c.answered ? c.pct + '%' : '—'));
+      it.appendChild(top);
+      var tr = el('div', 'cl-track');
+      var fl = el('div', 'cl-fill');
+      fl.style.width = (c.answered ? c.pct : 0) + '%';
+      fl.style.background = c.answered ? lv.color : '#C9B8AE';
+      tr.appendChild(fl);
+      it.appendChild(tr);
+      var foot = el('div', 'cl-foot');
+      foot.appendChild(el('span', null, c.answered ? ('得分 ' + c.got + ' / ' + c.max) : '这一类没有作答，不计入总评'));
+      foot.appendChild(el('span', null, '难度 ' + c.diff + ' / ' + A.DIFF_MAX));
+      it.appendChild(foot);
+      cll.appendChild(it);
+    });
+    body.appendChild(cll);
+
+    /* scatter */
+    body.appendChild(secTitle('难度 vs 熟练'));
+    body.appendChild(el('div', 'sec-sub', '横轴是这类的客观难度，纵轴是你的熟练度。右下是短板，右上是已经吃透的硬骨头。'));
+    var sp = el('div', 'panel');
+    var sbox = el('div', 'scatter-box');
+    var scv = el('canvas');
+    scv.setAttribute('aria-label', '难度与熟练度对照散点图');
+    scv.setAttribute('role', 'img');
+    sbox.appendChild(scv);
+    sp.appendChild(sbox);
+    var ql = el('div', 'quad-legend');
+    [
+      ['右下 · 短板', '难又没吃透，优先补'],
+      ['右上 · 强项', '难的也拿下了'],
+      ['左下 · 待巩固', '不难但不熟，性价比最高'],
+      ['左上 · 舒适区', '简单且熟练']
+    ].forEach(function (q) {
+      var d = el('div', 'quad');
+      d.appendChild(el('b', null, q[0]));
+      d.appendChild(document.createTextNode(q[1]));
+      ql.appendChild(d);
+    });
+    sp.appendChild(ql);
+    body.appendChild(sp);
+    requestAnimationFrame(function () { drawScatter(scv, r.cats); });
+
+    /* plan */
+    body.appendChild(secTitle('练习顺序建议'));
+    body.appendChild(el('div', 'sec-sub', '按「提升性价比」排序：优先补不难但没熟的，再攻难啃的短板。'));
+    var scored = r.cats.filter(function (c) { return c.answered; }).map(function (c) {
+      var diffN = c.diff / A.DIFF_MAX;
+      var gain = (100 - c.pct) * (1 - diffN * 0.45);
+      return { c: c, gain: gain };
+    }).sort(function (a, b) { return b.gain - a.gain; });
+
+    var pl = el('div', 'plan-list');
+    var todo = scored.filter(function (x) { return x.c.pct < 81; });
+    var done = scored.filter(function (x) { return x.c.pct >= 81; });
+
+    if (!todo.length && !done.length) {
+      var em = el('div', 'empty');
+      em.appendChild(el('div', 'ei', '🌱'));
+      em.appendChild(el('div', 'et', '这次没有可排序的类别'));
+      em.appendChild(el('div', 'ed', '所有选中的类别都没有作答，无法计算练习顺序。重新测评并至少答几题即可。'));
+      pl.appendChild(em);
+    } else if (!todo.length) {
+      pl.appendChild(el('div', 'plan-group-title', '各类都已达到精通，保持就好'));
+    }
+    if (todo.length) {
+      pl.appendChild(el('div', 'plan-group-title', '建议依次练这些'));
+      todo.forEach(function (x, i) {
+        var cat = A.catById(x.c.id);
+        pl.appendChild(planItem(i + 1, x.c, cat, false));
+      });
+    }
+    if (done.length) {
+      pl.appendChild(el('div', 'plan-group-title', '已经很稳的部分'));
+      done.forEach(function (x, i) {
+        var cat = A.catById(x.c.id);
+        pl.appendChild(planItem(i + 1, x.c, cat, true));
+      });
+    }
+    body.appendChild(pl);
+
+    /* notes */
+    var nb = el('div', 'note-box');
+    nb.appendChild(el('b', null, '关于这份结果'));
+    var ul = el('ul');
+    D.meta.notes.forEach(function (t) { ul.appendChild(el('li', null, t)); });
+    nb.appendChild(ul);
+    body.appendChild(nb);
+  }
+
+  function planItem(rank, c, cat, isDone) {
+    var it = el('div', 'plan-item');
+    it.appendChild(el('div', 'plan-rank' + (isDone ? ' done' : ''), isDone ? '✓' : String(rank)));
+    var b = el('div', 'plan-body');
+    b.appendChild(el('div', 'plan-name', c.icon + ' ' + c.name + ' · ' + (isDone ? '精通' : A.levelOf(c.pct).name)));
+    b.appendChild(el('div', 'plan-why', isDone
+      ? '熟练度 ' + c.pct + '%，难度 ' + c.diff + '/' + A.DIFF_MAX + '，这一块不用再花时间。'
+      : '熟练度 ' + c.pct + '%，难度 ' + c.diff + '/' + A.DIFF_MAX + '，' + whyText(c)));
+    if (cat && cat.next) {
+      b.appendChild(el('div', 'plan-next', '下一步：' + cat.next));
+    }
+    it.appendChild(b);
+    return it;
+  }
+
+  function whyText(c) {
+    var diffN = c.diff / A.DIFF_MAX;
+    if (diffN >= 0.7 && c.pct < 50) { return '属于难啃的短板，建议放到后面专门攻。'; }
+    if (diffN < 0.5 && c.pct < 60) { return '本身不难却还不熟，性价比最高，先补这个。'; }
+    return '还有提升空间，按下面的下一步走。';
+  }
+
+  function secTitle(t) {
+    var d = el('div', 'sec-title');
+    d.appendChild(el('span', 'bar'));
+    d.appendChild(document.createTextNode(t));
+    return d;
+  }
+
+  function fmtDate(ts) {
+    var d = new Date(ts);
+    function p(n) { return n < 10 ? '0' + n : String(n); }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /* SECTION: draw-radar */
+  function drawRadar(cv, axes) {
+    var box = cv.parentNode;
+    var s = A.canvasSize(box, 0.86);
+    var h = Math.min(s.h, 300);
+    var ctx = A.setupCanvas(cv, s.w, h);
+    var cx = s.w / 2, cy = h / 2 + 4;
+    var R = Math.min(s.w, h) / 2 - 40;
+    var n = axes.length;
+    if (n < 3 || R < 30) { return; }
+
+    function ang(i) { return -Math.PI / 2 + i * 2 * Math.PI / n; }
+    function pt(i, ratio) {
+      var a = ang(i);
+      return [cx + Math.cos(a) * R * ratio, cy + Math.sin(a) * R * ratio];
+    }
+
+    /* grid */
+    for (var ring = 1; ring <= 4; ring++) {
+      ctx.beginPath();
+      for (var i = 0; i < n; i++) {
+        var p = pt(i, ring / 4);
+        if (i === 0) { ctx.moveTo(p[0], p[1]); } else { ctx.lineTo(p[0], p[1]); }
+      }
+      ctx.closePath();
+      ctx.strokeStyle = ring === 4 ? '#EFD9CE' : '#F7EBE4';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    for (var j = 0; j < n; j++) {
+      var e = pt(j, 1);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(e[0], e[1]);
+      ctx.strokeStyle = '#F7EBE4'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    /* area */
+    ctx.beginPath();
+    axes.forEach(function (a, i) {
+      var p = pt(i, clamp(a.pct / 100, 0.04, 1));
+      if (i === 0) { ctx.moveTo(p[0], p[1]); } else { ctx.lineTo(p[0], p[1]); }
+    });
+    ctx.closePath();
+    var g = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    g.addColorStop(0, 'rgba(255,143,171,.34)');
+    g.addColorStop(1, 'rgba(240,181,103,.28)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = '#FF8FAB';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    /* points + labels */
+    axes.forEach(function (a, i) {
+      var ratio = clamp(a.pct / 100, 0.04, 1);
+      var p = pt(i, ratio);
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 3.6, 0, Math.PI * 2);
+      ctx.fillStyle = '#E86D8E';
+      ctx.fill();
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+
+      var lp = pt(i, 1.20);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#4A3B37';
+      ctx.font = '600 12px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(a.name, lp[0], lp[1] - 7);
+      ctx.fillStyle = '#A79690';
+      ctx.font = '11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(a.pct + '%', lp[0], lp[1] + 7);
+    });
+  }
+
+  /* SECTION: draw-scatter */
+  function drawScatter(cv, cats) {
+    var box = cv.parentNode;
+    var s = A.canvasSize(box, 0.92);
+    var h = Math.min(Math.max(s.h, 260), 380);
+    var ctx = A.setupCanvas(cv, s.w, h);
+    var pad = { l: 42, r: 16, t: 16, b: 40 };
+    var w = s.w - pad.l - pad.r;
+    var hh = h - pad.t - pad.b;
+    if (w < 60 || hh < 60) { return; }
+
+    var x0 = pad.l, y0 = pad.t + hh;
+
+    /* quadrant tint */
+    ctx.fillStyle = 'rgba(240,181,103,.07)';
+    ctx.fillRect(x0 + w / 2, pad.t, w / 2, hh / 2);
+    ctx.fillStyle = 'rgba(143,211,199,.10)';
+    ctx.fillRect(x0 + w / 2, pad.t + hh / 2, w / 2, hh / 2);
+    ctx.fillStyle = 'rgba(255,143,171,.08)';
+    ctx.fillRect(x0, pad.t + hh / 2, w / 2, hh / 2);
+
+    /* mid lines */
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '#E8D6CC';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0 + w / 2, pad.t); ctx.lineTo(x0 + w / 2, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, pad.t + hh / 2); ctx.lineTo(x0 + w, pad.t + hh / 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* frame */
+    ctx.strokeStyle = '#F0DED4';
+    ctx.beginPath();
+    ctx.moveTo(x0, pad.t); ctx.lineTo(x0, y0); ctx.lineTo(x0 + w, y0);
+    ctx.stroke();
+
+    /* labels */
+    ctx.fillStyle = '#A79690';
+    ctx.font = '10.5px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('难度 →', x0 + w / 2, y0 + 22);
+    ctx.save();
+    ctx.translate(13, pad.t + hh / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('熟练度 →', 0, 0);
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('0', x0 - 12, y0 + 4);
+    ctx.textAlign = 'right';
+    ctx.fillText('100%', x0 - 6, pad.t + 10);
+    ctx.fillText(String(A.DIFF_MAX), x0 + w + 2, y0 + 4);
+
+    var listed = cats.filter(function (c) { return c.answered; });
+    if (!listed.length) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#A79690';
+      ctx.font = '12px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText('本次没有已作答的类别', x0 + w / 2, pad.t + hh / 2);
+      return;
+    }
+
+    listed.forEach(function (c) {
+      var x = x0 + (c.diff / A.DIFF_MAX) * w;
+      var y = y0 - (c.pct / 100) * hh;
+      var lv = A.levelOf(c.pct);
+      ctx.beginPath();
+      ctx.arc(x, y, 9.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.strokeStyle = lv.color;
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#4A3B37';
+      ctx.font = '10px -apple-system, "PingFang SC", sans-serif';
+      ctx.fillText(c.icon, x, y + 0.5);
+
+      ctx.font = '10.5px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = '#7B6A64';
+      var above = y - 16 > pad.t;
+      ctx.textBaseline = above ? 'bottom' : 'top';
+      ctx.fillText(c.name, clamp(x, x0 + 22, x0 + w - 22), above ? y - 13 : y + 14);
+      ctx.fillStyle = '#A79690';
+      ctx.font = '10px -apple-system, "PingFang SC", sans-serif';
+      ctx.fillText(c.pct + '%', clamp(x, x0 + 18, x0 + w - 18), above ? y - 25 : y + 26);
+    });
+  }
+
+  /* SECTION: export */
+  function resultText(r) {
+    var lines = [];
+    lines.push('【字卡难度与熟练度评估】');
+    lines.push('评估对象：' + r.subject);
+    lines.push('时间：' + fmtDate(r.ts));
+    lines.push('综合：' + r.overall + '% · ' + r.title.name + ' · ' + r.level.name);
+    lines.push('一句话：' + r.title.line);
+    lines.push('得分：' + r.totalGot + ' / ' + r.totalMax);
+    lines.push('');
+    lines.push('四维能力：');
+    r.axes.forEach(function (a) {
+      lines.push('  ' + a.name + ' ' + (a.covered === false ? '本次范围未涉及' : a.pct + '%（' + a.got + '/' + a.max + '）'));
+    });
+    lines.push('');
+    lines.push('分类熟练度：');
+    r.cats.slice().sort(function (a, b) { return b.pct - a.pct; }).forEach(function (c) {
+      lines.push('  ' + c.icon + ' ' + c.name + '：' + (c.answered ? c.pct + '% · ' + A.levelOf(c.pct).name + '（' + c.got + '/' + c.max + '）' : '未作答') + ' · 难度 ' + c.diff + '/' + A.DIFF_MAX);
+    });
+    lines.push('');
+    lines.push('练习顺序：');
+    var todo = r.cats.filter(function (c) { return c.answered && c.pct < 81; }).map(function (c) {
+      var dn = c.diff / A.DIFF_MAX;
+      return { c: c, gain: (100 - c.pct) * (1 - dn * 0.45) };
+    }).sort(function (a, b) { return b.gain - a.gain; });
+    if (!todo.length) { lines.push('  各类都已达到精通，保持就好。'); }
+    todo.forEach(function (x, i) {
+      var cat = A.catById(x.c.id);
+      lines.push('  ' + (i + 1) + '. ' + x.c.name + '（' + x.c.pct + '%）' + (cat && cat.next ? ' → ' + cat.next : ''));
+    });
+    lines.push('');
+    lines.push('说明：难度分值与分级标准属经验性评估，非官方标准。');
+    lines.push(D.meta.credit);
+    return lines.join('\n');
+  }
+
+  function copyResult(r) {
+    var text = resultText(r);
+    var done = function () { toast('结果文本已复制到剪贴板'); };
+    var fail = function () {
+      var ta = el('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? '结果文本已复制到剪贴板' : '复制失败，可用「导出数据」下载文件');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fail);
+    } else { fail(); }
+  }
+
+  function exportJSON(r) {
+    try {
+      var payload = {
+        exportedAt: new Date().toISOString(),
+        tool: 'card-proficiency-assessment',
+        version: D.meta.version,
+        credit: D.meta.credit,
+        result: r
+      };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = el('a');
+      a.href = url;
+      a.download = '字卡熟练度评估_' + (r.subject || 'TA') + '_' + new Date(r.ts).toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast('已导出 JSON 文件');
+    } catch (e) {
+      toast('导出失败，浏览器可能不支持下载');
+    }
+  }
+
+  /* SECTION: history-render */
+  function renderHistory() {
+    var body = $('#historyBody');
+    body.innerHTML = '';
+    var h = getHistory();
+    if (!h.length) {
+      var e = el('div', 'empty');
+      e.appendChild(el('div', 'ei', '🗂️'));
+      e.appendChild(el('div', 'et', '还没有历史记录'));
+      e.appendChild(el('div', 'ed', '完成一次测评后会自动存在这台设备的浏览器里，之后可以在这里看进步曲线。'));
+      var b = el('button', 'btn primary', '去做测评');
+      b.type = 'button';
+      b.addEventListener('click', function () { switchView('quiz'); });
+      e.appendChild(b);
+      body.appendChild(e);
+      return;
+    }
+
+    /* trend */
+    var panel = el('div', 'panel');
+    var pt = el('div', 'panel-title');
+    pt.appendChild(el('span', 'dot'));
+    pt.appendChild(document.createTextNode('进步曲线'));
+    panel.appendChild(pt);
+    panel.appendChild(el('div', 'panel-sub', '按时间顺序的综合得分变化，最多显示最近 12 次。'));
+    var tb = el('div', 'trend-box');
+    tb.style.marginTop = '12px';
+    var tcv = el('canvas');
+    tcv.setAttribute('aria-label', '历次综合得分折线图');
+    tcv.setAttribute('role', 'img');
+    tb.appendChild(tcv);
+    panel.appendChild(tb);
+    body.appendChild(panel);
+    var trendData = h.slice(0, 12).slice().reverse();
+    requestAnimationFrame(function () { drawTrend(tcv, trendData); });
+
+    /* list */
+    var list = el('div', 'hist-list');
+    list.style.marginTop = '14px';
+    h.forEach(function (item, idx) {
+      var it = el('div', 'hist-item');
+      it.appendChild(el('div', 'hist-score', item.overall + '%'));
+      var m = el('div', 'hist-main');
+      m.appendChild(el('div', 'hist-name', item.title + ' · ' + item.subject));
+      var scopeName = item.scope === 'quick' ? '快速测评' : (item.scope === 'custom' ? '自选类别' : '完整测评');
+      m.appendChild(el('div', 'hist-meta', fmtDate(item.ts) + ' · ' + scopeName + ' · ' + item.cats.length + ' 类'));
+      it.appendChild(m);
+
+      var older = h[idx + 1];
+      var delta = el('div', 'hist-delta');
+      if (older && older.subject === item.subject) {
+        var d = item.overall - older.overall;
+        delta.className = 'hist-delta ' + (d > 0 ? 'up' : (d < 0 ? 'down' : 'same'));
+        delta.textContent = d > 0 ? ('+' + d) : (d === 0 ? '持平' : String(d));
+      } else {
+        delta.className = 'hist-delta same';
+        delta.textContent = idx === h.length - 1 ? '首次' : '—';
+      }
+      it.appendChild(delta);
+
+      var viewBtn = el('button', 'hist-del', '查看');
+      viewBtn.type = 'button';
+      viewBtn.addEventListener('click', function () { loadFromHistory(item); });
+      it.appendChild(viewBtn);
+
+      var del = el('button', 'hist-del', '删除');
+      del.type = 'button';
+      del.setAttribute('aria-label', '删除这条记录');
+      del.addEventListener('click', function () {
+        var arr = getHistory();
+        arr.splice(idx, 1);
+        storeJSON(LS.history, arr);
+        renderHistory();
+        toast('已删除这条记录');
+      });
+      it.appendChild(del);
+      list.appendChild(it);
+    });
+    body.appendChild(list);
+
+    /* manage */
+    var acts = el('div', 'btn-row');
+    acts.style.marginTop = '14px';
+    var exAll = el('button', 'btn', '导出全部记录');
+    exAll.type = 'button';
+    exAll.addEventListener('click', function () {
+      try {
+        var blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), history: h }, null, 2)], { type: 'application/json;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = el('a');
+        a.href = url;
+        a.download = '字卡熟练度评估_全部记录.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        toast('已导出全部历史记录');
+      } catch (e) { toast('导出失败，浏览器可能不支持下载'); }
+    });
+    acts.appendChild(exAll);
+    var clr = el('button', 'btn danger', '清空全部记录');
+    clr.type = 'button';
+    clr.addEventListener('click', function () {
+      if (!window.confirm('确定清空全部历史记录吗？此操作不可撤销，建议先导出。')) { return; }
+      store(LS.history, null);
+      state.result = null;
+      renderHistory();
+      renderResult();
+      toast('已清空全部历史记录');
+    });
+    acts.appendChild(clr);
+    body.appendChild(acts);
+  }
+
+  function applyHistoryItem(item) {
+    /* 兼容早期记录：维度与类别可能缺少 covered / answered 标记，按是否有题目补回 */
+    var axes = (item.axes || []).map(function (a) {
+      return {
+        id: a.id, name: a.name, desc: a.desc,
+        got: a.got || 0, max: a.max || 0, pct: a.pct || 0,
+        covered: (typeof a.covered === 'boolean') ? a.covered : (a.max > 0)
+      };
+    });
+    var cats = (item.cats || []).map(function (c) {
+      return {
+        id: c.id, name: c.name, icon: c.icon, sub: c.sub,
+        got: c.got || 0, max: c.max || 0, pct: c.pct || 0,
+        diff: (typeof c.diff === 'number') ? c.diff : 0,
+        answered: (typeof c.answered === 'boolean') ? c.answered : (c.max > 0)
+      };
+    });
+    state.result = {
+      ts: item.ts, subjectId: item.subjectId, subject: item.subject, scope: item.scope,
+      scopeCats: cats.map(function (c) { return c.id; }),
+      totalGot: cats.reduce(function (s, c) { return s + c.got; }, 0),
+      totalMax: cats.reduce(function (s, c) { return s + c.max; }, 0),
+      overall: item.overall, title: A.titleOf(item.overall), level: A.levelOf(item.overall),
+      axes: axes, cats: cats
+    };
+    return state.result;
+  }
+
+  function loadFromHistory(item) {
+    applyHistoryItem(item);
+    /* 先切到结果视图再渲染，画布才能按真实容器宽度绘制 */
+    switchView('result');
+    toast('已载入这次的历史结果');
+  }
+
+  function drawTrend(cv, items) {
+    var box = cv.parentNode;
+    var s = A.canvasSize(box, 0.42);
+    var h = Math.min(Math.max(s.h, 150), 220);
+    var ctx = A.setupCanvas(cv, s.w, h);
+    var pad = { l: 34, r: 16, t: 14, b: 26 };
+    var w = s.w - pad.l - pad.r;
+    var hh = h - pad.t - pad.b;
+    if (w < 60 || hh < 50 || !items.length) { return; }
+    var x0 = pad.l, y0 = pad.t + hh;
+
+    /* grid */
+    ctx.strokeStyle = '#F7EBE4';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#B9A7A0';
+    ctx.font = '10px -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (var g = 0; g <= 4; g++) {
+      var yv = pad.t + hh - (g / 4) * hh;
+      ctx.beginPath(); ctx.moveTo(x0, yv); ctx.lineTo(x0 + w, yv); ctx.stroke();
+      ctx.fillText(String(g * 25), x0 - 7, yv);
+    }
+
+    function X(i) {
+      if (items.length === 1) { return x0 + w / 2; }
+      return x0 + (i / (items.length - 1)) * w;
+    }
+    function Y(v) { return y0 - (clamp(v, 0, 100) / 100) * hh; }
+
+    /* area + line */
+    ctx.beginPath();
+    items.forEach(function (it, i) {
+      var x = X(i), y = Y(it.overall);
+      if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+    });
+    var strokePath = new Path2D();
+    items.forEach(function (it, i) {
+      var x = X(i), y = Y(it.overall);
+      if (i === 0) { strokePath.moveTo(x, y); } else { strokePath.lineTo(x, y); }
+    });
+    if (items.length > 1) {
+      ctx.lineTo(X(items.length - 1), y0);
+      ctx.lineTo(X(0), y0);
+      ctx.closePath();
+      var grad = ctx.createLinearGradient(0, pad.t, 0, y0);
+      grad.addColorStop(0, 'rgba(255,143,171,.26)');
+      grad.addColorStop(1, 'rgba(255,143,171,0)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = '#FF8FAB';
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.stroke(strokePath);
+    }
+
+    /* points + date labels */
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    items.forEach(function (it, i) {
+      var x = X(i), y = Y(it.overall);
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFF'; ctx.fill();
+      ctx.strokeStyle = '#E86D8E'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#4A3B37';
+      ctx.font = '600 10.5px -apple-system, "PingFang SC", sans-serif';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(it.overall + '%', x, y - 8);
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#A79690';
+      ctx.font = '9.5px -apple-system, "PingFang SC", sans-serif';
+      var d = new Date(it.ts);
+      var lbl = (d.getMonth() + 1) + '/' + d.getDate();
+      var show = items.length <= 6 || i === 0 || i === items.length - 1 || i % 2 === 0;
+      if (show) { ctx.fillText(lbl, clamp(x, x0 + 10, x0 + w - 10), y0 + 7); }
+    });
+  }
+
+  /* SECTION: tabs */
+  function switchView(v) {
+    state.view = v;
+    A.$$('.tab').forEach(function (t) {
+      t.setAttribute('aria-selected', t.getAttribute('data-view') === v ? 'true' : 'false');
+    });
+    A.$$('.view').forEach(function (s) {
+      s.classList.toggle('active', s.id === 'view-' + v);
+    });
+    if (v === 'result') { renderResult(); }
+    if (v === 'history') { renderHistory(); }
+    if (v === 'quiz') { renderSetup(); }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function bindTabs() {
+    A.$$('.tab').forEach(function (t) {
+      t.addEventListener('click', function () { switchView(t.getAttribute('data-view')); });
+    });
+  }
+
+  /* SECTION: hooks-expose */
+  A.hooks = {
+    renderSetup: renderSetup,
+    renderQuestion: renderQuestion,
+    renderResult: renderResult,
+    renderHistory: renderHistory,
+    switchView: switchView
+  };
+
+  /* SECTION: boot */
+  function boot() {
+    A.initMeta();
+
+    var sid = store(LS.subject);
+    if (sid && D.subjects.some(function (s) { return s.id === sid; })) { state.subjectId = sid; }
+    var nm = store(LS.name);
+    if (nm) { state.customName = nm; }
+
+    var prog = storeJSON(LS.progress);
+    if (prog && prog.answers && typeof prog.answers === 'object') {
+      state.answers = prog.answers;
+      state.qIndex = prog.qIndex || 0;
+      if (prog.scope) { state.scope = prog.scope; }
+      if (prog.scopeCats) { state.scopeCats = prog.scopeCats; }
+      if (prog.subjectId) { state.subjectId = prog.subjectId; }
+      if (prog.customName) { state.customName = prog.customName; }
+    }
+
+    A.renderSubjects();
+    A.bindGuide();
+    bindTabs();
+    A.renderGuide();
+    renderSetup();
+
+    var nameInput = $('#nameInput');
+    nameInput.value = state.customName || '';
+    nameInput.addEventListener('input', function () {
+      state.customName = nameInput.value;
+      store(LS.name, nameInput.value);
+      renderSetup();
+      if (state.result) { renderResult(); }
+    });
+
+    /* 首屏：有未完成作答就回到测评视图，否则静默恢复最近一次结果 */
+    var hasProg = Object.keys(state.answers).some(function (k) {
+      return (state.answers[k] || []).some(function (v) { return v != null; });
+    });
+    if (hasProg) {
+      switchView('quiz');
+    } else {
+      var hist = getHistory();
+      if (hist.length) {
+        applyHistoryItem(hist[0]);
+        renderResult();
+      }
+    }
+
+    /* 窗口尺寸变化时重绘画布 */
+    var rt = null;
+    window.addEventListener('resize', function () {
+      if (rt) { clearTimeout(rt); }
+      rt = setTimeout(function () {
+        if (state.view === 'result' && state.result) { renderResult(); }
+        if (state.view === 'history') { renderHistory(); }
+      }, 220);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+
+</script>
+</body>
+</html>
